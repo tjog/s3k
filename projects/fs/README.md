@@ -7,4 +7,4 @@ disk
   
 To run the program, you first have to create a disk image using ``make
 disk-image``.
-To check the result of accessing the filesystem, you can use 
+To check the result of accessing the filesystem, you can use ``make disk-read``.
