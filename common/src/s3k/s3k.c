@@ -62,6 +62,22 @@ typedef union {
 		bool send_cap;
 		uint64_t data[4];
 	} sock;
+
+	struct {
+		s3k_cidx_t idx;
+		s3k_cidx_t dst_idx;
+		const char *path;
+		s3k_path_flags_t flags;
+	} path;
+
+	struct {
+		s3k_cidx_t idx;
+		uint32_t offset;
+		uint8_t *buf;
+		uint32_t buf_size;
+		uint32_t *bytes_result;
+	} file;
+
 } sys_args_t;
 
 typedef struct {
@@ -87,10 +103,8 @@ s3k_cap_t s3k_mk_time(s3k_hart_t hart, s3k_time_slot_t bgn, s3k_time_slot_t end)
 s3k_cap_t s3k_mk_memory(s3k_addr_t bgn, s3k_addr_t end, s3k_rwx_t rwx)
 {
 	s3k_tag_t tag = bgn >> S3K_MAX_BLOCK_SIZE;
-	s3k_block_t bgn_block = (bgn - (tag << S3K_MAX_BLOCK_SIZE))
-				>> S3K_MIN_BLOCK_SIZE;
-	s3k_block_t end_block = (end - (tag << S3K_MAX_BLOCK_SIZE))
-				>> S3K_MIN_BLOCK_SIZE;
+	s3k_block_t bgn_block = (bgn - (tag << S3K_MAX_BLOCK_SIZE)) >> S3K_MIN_BLOCK_SIZE;
+	s3k_block_t end_block = (end - (tag << S3K_MAX_BLOCK_SIZE)) >> S3K_MIN_BLOCK_SIZE;
 
 	return (s3k_cap_t){
 	    .mem = {
@@ -142,8 +156,7 @@ s3k_cap_t s3k_mk_channel(s3k_chan_t bgn, s3k_chan_t end)
 	     };
 }
 
-s3k_cap_t s3k_mk_socket(s3k_chan_t chan, s3k_ipc_mode_t mode,
-			s3k_ipc_perm_t perm, uint32_t tag)
+s3k_cap_t s3k_mk_socket(s3k_chan_t chan, s3k_ipc_mode_t mode, s3k_ipc_perm_t perm, uint32_t tag)
 {
 	return (s3k_cap_t){
 	    .sock = {
@@ -167,14 +180,12 @@ s3k_napot_t s3k_napot_encode(s3k_addr_t base, size_t size)
 	return (base | (size / 2 - 1)) >> 2;
 }
 
-static inline bool is_range_subset(uint64_t a_bgn, uint64_t a_end,
-				   uint64_t b_bgn, uint64_t b_end)
+static inline bool is_range_subset(uint64_t a_bgn, uint64_t a_end, uint64_t b_bgn, uint64_t b_end)
 {
 	return a_bgn <= b_bgn && b_end <= a_end;
 }
 
-static inline bool is_range_prefix(uint64_t a_bgn, uint64_t a_end,
-				   uint64_t b_bgn, uint64_t b_end)
+static inline bool is_range_prefix(uint64_t a_bgn, uint64_t a_end, uint64_t b_bgn, uint64_t b_end)
 {
 	return a_bgn == b_bgn && b_end <= a_end;
 }
@@ -186,15 +197,13 @@ static inline bool is_bit_subset(uint64_t a, uint64_t b)
 
 s3k_addr_t s3k_tag_block_to_addr(s3k_tag_t tag, s3k_block_t block)
 {
-	return ((uint64_t)tag << S3K_MAX_BLOCK_SIZE)
-	       + ((uint64_t)block << S3K_MIN_BLOCK_SIZE);
+	return ((uint64_t)tag << S3K_MAX_BLOCK_SIZE) + ((uint64_t)block << S3K_MIN_BLOCK_SIZE);
 }
 
 static bool s3k_cap_time_revokable(s3k_cap_t p, s3k_cap_t c)
 {
 	return (c.type == S3K_CAPTY_TIME) && (p.time.hart == c.time.hart)
-	       && is_range_subset(p.time.bgn, p.time.end, c.time.bgn,
-				  c.time.end);
+	       && is_range_subset(p.time.bgn, p.time.end, c.time.bgn, c.time.end);
 }
 
 static bool s3k_cap_mem_revokable(s3k_cap_t p, s3k_cap_t c)
@@ -219,18 +228,15 @@ static bool s3k_cap_mon_revokable(s3k_cap_t p, s3k_cap_t c)
 static bool s3k_cap_chan_revokable(s3k_cap_t p, s3k_cap_t c)
 {
 	if (c.type == S3K_CAPTY_SOCKET) {
-		return is_range_subset(p.chan.bgn, p.chan.end, c.sock.chan,
-				       c.sock.chan + 1);
+		return is_range_subset(p.chan.bgn, p.chan.end, c.sock.chan, c.sock.chan + 1);
 	}
 	return (c.type == S3K_CAPTY_CHANNEL)
-	       && is_range_subset(p.chan.bgn, p.chan.end, c.chan.bgn,
-				  c.chan.end);
+	       && is_range_subset(p.chan.bgn, p.chan.end, c.chan.bgn, c.chan.end);
 }
 
 static bool s3k_cap_sock_revokable(s3k_cap_t p, s3k_cap_t c)
 {
-	return (p.sock.tag == 0) && (c.sock.tag != 0)
-	       && (p.sock.chan == c.sock.chan);
+	return (p.sock.tag == 0) && (c.sock.tag != 0) && (p.sock.chan == c.sock.chan);
 }
 
 bool s3k_cap_is_revokable(s3k_cap_t p, s3k_cap_t c)
@@ -265,11 +271,9 @@ bool s3k_cap_is_valid(s3k_cap_t c)
 	case S3K_CAPTY_CHANNEL:
 		return (c.chan.bgn == c.chan.mrk) && (c.chan.bgn < c.chan.end);
 	case S3K_CAPTY_SOCKET:
-		return is_bit_subset(c.sock.perm, S3K_IPC_SDATA | S3K_IPC_CDATA
-						      | S3K_IPC_SCAP
-						      | S3K_IPC_CCAP)
-		       && is_bit_subset(c.sock.mode,
-					S3K_IPC_YIELD | S3K_IPC_NOYIELD);
+		return is_bit_subset(c.sock.perm,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_CCAP)
+		       && is_bit_subset(c.sock.mode, S3K_IPC_YIELD | S3K_IPC_NOYIELD);
 	default:
 		return false;
 	}
@@ -278,8 +282,7 @@ bool s3k_cap_is_valid(s3k_cap_t c)
 static bool s3k_cap_time_derivable(s3k_cap_t p, s3k_cap_t c)
 {
 	return (c.type == S3K_CAPTY_TIME) && (p.time.hart == c.time.hart)
-	       && is_range_prefix(p.time.bgn, p.time.end, c.time.bgn,
-				  c.time.end);
+	       && is_range_prefix(p.time.bgn, p.time.end, c.time.bgn, c.time.end);
 }
 
 static bool s3k_cap_mem_derivable(s3k_cap_t p, s3k_cap_t c)
@@ -307,19 +310,16 @@ static bool s3k_cap_chan_derivable(s3k_cap_t p, s3k_cap_t c)
 {
 	if (c.type == S3K_CAPTY_SOCKET) {
 		return (c.sock.tag == 0)
-		       && is_range_subset(p.chan.mrk, p.chan.end, c.sock.chan,
-					  c.sock.chan + 1);
+		       && is_range_subset(p.chan.mrk, p.chan.end, c.sock.chan, c.sock.chan + 1);
 	}
 	return (c.type == S3K_CAPTY_CHANNEL)
-	       && is_range_subset(p.chan.mrk, p.chan.end, c.chan.bgn,
-				  c.chan.end);
+	       && is_range_subset(p.chan.mrk, p.chan.end, c.chan.bgn, c.chan.end);
 }
 
 static bool s3k_cap_sock_derivable(s3k_cap_t p, s3k_cap_t c)
 {
-	return (c.type == S3K_CAPTY_SOCKET) && (p.sock.chan == c.sock.chan)
-	       && (p.sock.tag == 0) && (c.sock.tag != 0)
-	       && (p.sock.mode == c.sock.mode) && (p.sock.perm == c.sock.perm);
+	return (c.type == S3K_CAPTY_SOCKET) && (p.sock.chan == c.sock.chan) && (p.sock.tag == 0)
+	       && (c.sock.tag != 0) && (p.sock.mode == c.sock.mode) && (p.sock.perm == c.sock.perm);
 }
 
 bool s3k_cap_is_derivable(s3k_cap_t p, s3k_cap_t c)
@@ -353,8 +353,7 @@ static inline s3k_ret_t do_ecall(s3k_syscall_t call, sys_args_t args)
 	register uint64_t a7 __asm__("a7") = args.a7;
 	__asm__ volatile("ecall"
 			 : "+r"(t0), "+r"(a0)
-			 : "r"(a1), "r"(a2), "r"(a3), "r"(a4), "r"(a5), "r"(a6),
-			   "r"(a7));
+			 : "r"(a1), "r"(a2), "r"(a3), "r"(a4), "r"(a5), "r"(a6), "r"(a7));
 	return (s3k_ret_t){.err = t0, .val = a0};
 }
 
@@ -489,8 +488,7 @@ s3k_err_t s3k_mon_resume(s3k_cidx_t mon_idx, s3k_pid_t pid)
 	return err;
 }
 
-s3k_err_t s3k_mon_state_get(s3k_cidx_t mon_idx, s3k_pid_t pid,
-			    s3k_state_t *state)
+s3k_err_t s3k_mon_state_get(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_state_t *state)
 {
 	s3k_err_t err;
 	do {
@@ -508,8 +506,7 @@ s3k_err_t s3k_mon_yield(s3k_cidx_t mon_idx, s3k_pid_t pid)
 	return err;
 }
 
-s3k_err_t s3k_mon_reg_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_reg_t reg,
-			   uint64_t *val)
+s3k_err_t s3k_mon_reg_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_reg_t reg, uint64_t *val)
 {
 	s3k_err_t err;
 	do {
@@ -518,8 +515,7 @@ s3k_err_t s3k_mon_reg_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_reg_t reg,
 	return err;
 }
 
-s3k_err_t s3k_mon_reg_write(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_reg_t reg,
-			    uint64_t val)
+s3k_err_t s3k_mon_reg_write(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_reg_t reg, uint64_t val)
 {
 	s3k_err_t err;
 	do {
@@ -528,8 +524,7 @@ s3k_err_t s3k_mon_reg_write(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_reg_t reg,
 	return err;
 }
 
-s3k_err_t s3k_mon_cap_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx,
-			   s3k_cap_t *cap)
+s3k_err_t s3k_mon_cap_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx, s3k_cap_t *cap)
 {
 	s3k_err_t err;
 	do {
@@ -538,20 +533,18 @@ s3k_err_t s3k_mon_cap_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx,
 	return err;
 }
 
-s3k_err_t s3k_mon_cap_move(s3k_cidx_t mon_idx, s3k_pid_t src_pid,
-			   s3k_cidx_t src_idx, s3k_pid_t dst_pid,
-			   s3k_cidx_t dst_idx)
+s3k_err_t s3k_mon_cap_move(s3k_cidx_t mon_idx, s3k_pid_t src_pid, s3k_cidx_t src_idx,
+			   s3k_pid_t dst_pid, s3k_cidx_t dst_idx)
 {
 	s3k_err_t err;
 	do {
-		err = s3k_try_mon_cap_move(mon_idx, src_pid, src_idx, dst_pid,
-					   dst_idx);
+		err = s3k_try_mon_cap_move(mon_idx, src_pid, src_idx, dst_pid, dst_idx);
 	} while (err == S3K_ERR_PREEMPTED);
 	return err;
 }
 
-s3k_err_t s3k_mon_pmp_load(s3k_cidx_t mon_idx, s3k_pid_t pid,
-			   s3k_cidx_t pmp_idx, s3k_pmp_slot_t pmp_slot)
+s3k_err_t s3k_mon_pmp_load(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t pmp_idx,
+			   s3k_pmp_slot_t pmp_slot)
 {
 	s3k_err_t err;
 	do {
@@ -560,8 +553,7 @@ s3k_err_t s3k_mon_pmp_load(s3k_cidx_t mon_idx, s3k_pid_t pid,
 	return err;
 }
 
-s3k_err_t s3k_mon_pmp_unload(s3k_cidx_t mon_idx, s3k_pid_t pid,
-			     s3k_cidx_t pmp_idx)
+s3k_err_t s3k_mon_pmp_unload(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t pmp_idx)
 {
 	s3k_err_t err;
 	do {
@@ -655,8 +647,7 @@ s3k_err_t s3k_try_mon_resume(s3k_cidx_t mon, s3k_pid_t pid)
 	return do_ecall(S3K_SYS_MON_RESUME, args).err;
 }
 
-s3k_err_t s3k_try_mon_state_get(s3k_cidx_t mon, s3k_pid_t pid,
-				s3k_state_t *state)
+s3k_err_t s3k_try_mon_state_get(s3k_cidx_t mon, s3k_pid_t pid, s3k_state_t *state)
 {
 	sys_args_t args = {
 	    .mon_state = {mon, pid}
@@ -674,8 +665,7 @@ s3k_err_t s3k_try_mon_yield(s3k_cidx_t mon, s3k_pid_t pid)
 	return do_ecall(S3K_SYS_MON_YIELD, args).err;
 }
 
-s3k_err_t s3k_try_mon_reg_read(s3k_cidx_t mon, s3k_pid_t pid, s3k_reg_t reg,
-			       uint64_t *val)
+s3k_err_t s3k_try_mon_reg_read(s3k_cidx_t mon, s3k_pid_t pid, s3k_reg_t reg, uint64_t *val)
 {
 	sys_args_t args = {
 	    .mon_reg = {mon, pid, reg}
@@ -685,8 +675,7 @@ s3k_err_t s3k_try_mon_reg_read(s3k_cidx_t mon, s3k_pid_t pid, s3k_reg_t reg,
 	return ret.err;
 }
 
-s3k_err_t s3k_try_mon_reg_write(s3k_cidx_t mon, s3k_pid_t pid, s3k_reg_t reg,
-				uint64_t val)
+s3k_err_t s3k_try_mon_reg_write(s3k_cidx_t mon, s3k_pid_t pid, s3k_reg_t reg, uint64_t val)
 {
 	sys_args_t args = {
 	    .mon_reg = {mon, pid, reg, val}
@@ -695,8 +684,7 @@ s3k_err_t s3k_try_mon_reg_write(s3k_cidx_t mon, s3k_pid_t pid, s3k_reg_t reg,
 	return ret.err;
 }
 
-s3k_err_t s3k_try_mon_cap_read(s3k_cidx_t mon_idx, s3k_pid_t pid,
-			       s3k_cidx_t idx, s3k_cap_t *cap)
+s3k_err_t s3k_try_mon_cap_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx, s3k_cap_t *cap)
 {
 	sys_args_t args = {
 	    .mon_cap = {mon_idx, pid, idx}
@@ -707,9 +695,8 @@ s3k_err_t s3k_try_mon_cap_read(s3k_cidx_t mon_idx, s3k_pid_t pid,
 	return ret.err;
 }
 
-s3k_err_t s3k_try_mon_cap_move(s3k_cidx_t mon_idx, s3k_pid_t src_pid,
-			       s3k_cidx_t src_idx, s3k_pid_t dst_pid,
-			       s3k_cidx_t dst_idx)
+s3k_err_t s3k_try_mon_cap_move(s3k_cidx_t mon_idx, s3k_pid_t src_pid, s3k_cidx_t src_idx,
+			       s3k_pid_t dst_pid, s3k_cidx_t dst_idx)
 {
 	sys_args_t args = {
 	    .mon_cap = {mon_idx, src_pid, src_idx, dst_pid, dst_idx}
@@ -717,8 +704,8 @@ s3k_err_t s3k_try_mon_cap_move(s3k_cidx_t mon_idx, s3k_pid_t src_pid,
 	return do_ecall(S3K_SYS_MON_CAP_MOVE, args).err;
 }
 
-s3k_err_t s3k_try_mon_pmp_load(s3k_cidx_t mon_idx, s3k_pid_t pid,
-			       s3k_cidx_t pmp_idx, s3k_pmp_slot_t pmp_slot)
+s3k_err_t s3k_try_mon_pmp_load(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t pmp_idx,
+			       s3k_pmp_slot_t pmp_slot)
 {
 	sys_args_t args = {
 	    .mon_pmp = {mon_idx, pid, pmp_idx, pmp_slot}
@@ -726,8 +713,7 @@ s3k_err_t s3k_try_mon_pmp_load(s3k_cidx_t mon_idx, s3k_pid_t pid,
 	return do_ecall(S3K_SYS_MON_PMP_LOAD, args).err;
 }
 
-s3k_err_t s3k_try_mon_pmp_unload(s3k_cidx_t mon_idx, s3k_pid_t pid,
-				 s3k_cidx_t pmp_idx)
+s3k_err_t s3k_try_mon_pmp_unload(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t pmp_idx)
 {
 	sys_args_t args = {
 	    .mon_pmp = {mon_idx, pid, pmp_idx}
@@ -761,8 +747,7 @@ s3k_reply_t s3k_try_sock_recv(s3k_cidx_t sock_idx, s3k_cidx_t cap_idx)
 	register uint64_t a6 __asm__("a6") = args.a6;
 	register uint64_t a7 __asm__("a7") = args.a7;
 	__asm__ volatile("ecall"
-			 : "+r"(t0), "+r"(a0), "+r"(a1), "+r"(a2), "+r"(a3),
-			   "+r"(a4), "+r"(a5)
+			 : "+r"(t0), "+r"(a0), "+r"(a1), "+r"(a2), "+r"(a3), "+r"(a4), "+r"(a5)
 			 : "r"(a6), "r"(a7));
 	s3k_reply_t reply;
 	reply.err = t0;
@@ -793,8 +778,7 @@ s3k_reply_t s3k_try_sock_sendrecv(s3k_cidx_t sock_idx, const s3k_msg_t *msg)
 	register uint64_t a6 __asm__("a6") = args.a6;
 	register uint64_t a7 __asm__("a7") = args.a7;
 	__asm__ volatile("ecall"
-			 : "+r"(t0), "+r"(a0), "+r"(a1), "+r"(a2), "+r"(a3),
-			   "+r"(a4), "+r"(a5)
+			 : "+r"(t0), "+r"(a0), "+r"(a1), "+r"(a2), "+r"(a3), "+r"(a4), "+r"(a5)
 			 : "r"(a6), "r"(a7));
 	s3k_reply_t reply;
 	reply.err = t0;
@@ -805,4 +789,47 @@ s3k_reply_t s3k_try_sock_sendrecv(s3k_cidx_t sock_idx, const s3k_msg_t *msg)
 	reply.data[2] = a4;
 	reply.data[3] = a5;
 	return reply;
+}
+
+s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, s3k_path_flags_t flags)
+{
+	sys_args_t args = {
+	    .path = {
+		     .idx = src,
+		     .dst_idx = dest,
+		     .path = path,
+		     .flags = flags,
+		     }
+	     };
+	return do_ecall(S3K_SYS_PATH_DERIVE, args).err;
+}
+
+s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
+			uint32_t *bytes_read)
+{
+	sys_args_t args = {
+	    .file = {
+		     .idx = file,
+		     .offset = offset,
+		     .buf = buf,
+		     .buf_size = buf_size,
+		     .bytes_result = bytes_read,
+		     }
+	     };
+	return do_ecall(S3K_SYS_READ_FILE, args).err;
+}
+
+s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
+			 uint32_t *bytes_written)
+{
+	sys_args_t args = {
+	    .file = {
+		     .idx = file,
+		     .offset = offset,
+		     .buf = buf,
+		     .buf_size = buf_size,
+		     .bytes_result = bytes_written,
+		     }
+	     };
+	return do_ecall(S3K_SYS_WRITE_FILE, args).err;
 }

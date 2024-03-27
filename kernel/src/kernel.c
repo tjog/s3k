@@ -4,6 +4,7 @@
 #include "altc/init.h"
 #include "cap_table.h"
 #include "csr.h"
+#include "fs.h"
 #include "kassert.h"
 #include "mcslock.h"
 #include "proc.h"
@@ -19,6 +20,7 @@ void kernel_init(void)
 	ctable_init();
 	sched_init();
 	proc_init();
+	fs_init();
 	alt_puts("kernel initialized");
 }
 

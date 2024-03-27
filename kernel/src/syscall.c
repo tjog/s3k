@@ -1,6 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 #include "syscall.h"
 
+#include "cap_fs.h"
 #include "cap_ipc.h"
 #include "cap_monitor.h"
 #include "cap_ops.h"
@@ -35,32 +36,31 @@ static err_t sys_pmp_load(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_pmp_unload(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_suspend(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_resume(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_mon_state_get(proc_t *p, const sys_args_t *args,
-			       uint64_t *ret);
+static err_t sys_mon_state_get(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_yield(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_reg_read(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_mon_reg_write(proc_t *p, const sys_args_t *args,
-			       uint64_t *ret);
+static err_t sys_mon_reg_write(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_cap_read(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_cap_move(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_pmp_load(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_mon_pmp_unload(proc_t *p, const sys_args_t *args,
-				uint64_t *ret);
+static err_t sys_mon_pmp_unload(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_sock_send(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_sock_recv(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_sock_sendrecv(proc_t *p, const sys_args_t *args,
-			       uint64_t *ret);
+static err_t sys_sock_sendrecv(proc_t *p, const sys_args_t *args, uint64_t *ret);
+
+static err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret);
+static err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
+static err_t sys_write_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
 
 typedef err_t (*sys_handler_t)(proc_t *, const sys_args_t *, uint64_t *);
 
-sys_handler_t handlers[] = {
-    sys_get_info,	sys_reg_read,	   sys_reg_write,    sys_sync,
-    sys_cap_read,	sys_cap_move,	   sys_cap_delete,   sys_cap_revoke,
-    sys_cap_derive,	sys_pmp_load,	   sys_pmp_unload,   sys_mon_suspend,
-    sys_mon_resume,	sys_mon_state_get, sys_mon_yield,    sys_mon_reg_read,
-    sys_mon_reg_write,	sys_mon_cap_read,  sys_mon_cap_move, sys_mon_pmp_load,
-    sys_mon_pmp_unload, sys_sock_send,	   sys_sock_recv,    sys_sock_sendrecv,
-};
+sys_handler_t handlers[]
+    = {sys_get_info,	   sys_reg_read,      sys_reg_write,	sys_sync,	   sys_cap_read,
+       sys_cap_move,	   sys_cap_delete,    sys_cap_revoke,	sys_cap_derive,	   sys_pmp_load,
+       sys_pmp_unload,	   sys_mon_suspend,   sys_mon_resume,	sys_mon_state_get, sys_mon_yield,
+       sys_mon_reg_read,   sys_mon_reg_write, sys_mon_cap_read, sys_mon_cap_move,  sys_mon_pmp_load,
+       sys_mon_pmp_unload, sys_sock_send,     sys_sock_recv,	sys_sock_sendrecv, sys_path_derive,
+       sys_read_file,	   sys_write_file};
 
 void handle_syscall(proc_t *p)
 {
@@ -273,6 +273,21 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 		if (!valid_idx(args->sock.cap_idx))
 			return ERR_INVALID_INDEX;
 		return SUCCESS;
+
+	case SYS_READ_FILE:
+	case SYS_WRITE_FILE:
+		if (!valid_idx(args->file.idx))
+			return ERR_INVALID_INDEX;
+		return SUCCESS; /* TODO: check that the pointer + size is within
+							memory restrictions of process */
+	case SYS_PATH_DERIVE:
+		if (!valid_idx(args->path.idx))
+			return ERR_INVALID_INDEX;
+		if (!valid_idx(args->cap.dst_idx))
+			return ERR_INVALID_INDEX;
+		/* TODO: implement equivalent of "cap_is_valid" */
+		return SUCCESS; /* TODO: check for path is relative and beneath source
+		 					(not '..' etc) */
 	default:
 		return ERR_INVALID_SYSCALL;
 	}
@@ -407,8 +422,7 @@ err_t sys_mon_resume(proc_t *p, const sys_args_t *args, uint64_t *ret)
 err_t sys_mon_state_get(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t mon = ctable_get(p->pid, args->mon_state.mon_idx);
-	return cap_monitor_state_get(mon, args->mon_state.pid,
-				     (proc_state_t *)ret);
+	return cap_monitor_state_get(mon, args->mon_state.pid, (proc_state_t *)ret);
 }
 
 err_t sys_mon_yield(proc_t *p, const sys_args_t *args, uint64_t *ret)
@@ -420,15 +434,13 @@ err_t sys_mon_yield(proc_t *p, const sys_args_t *args, uint64_t *ret)
 err_t sys_mon_reg_read(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t mon = ctable_get(p->pid, args->mon_reg.mon_idx);
-	return cap_monitor_reg_read(mon, args->mon_reg.pid, args->mon_reg.reg,
-				    ret);
+	return cap_monitor_reg_read(mon, args->mon_reg.pid, args->mon_reg.reg, ret);
 }
 
 err_t sys_mon_reg_write(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t mon = ctable_get(p->pid, args->mon_reg.mon_idx);
-	return cap_monitor_reg_write(mon, args->mon_reg.pid, args->mon_reg.reg,
-				     args->mon_reg.val);
+	return cap_monitor_reg_write(mon, args->mon_reg.pid, args->mon_reg.reg, args->mon_reg.val);
 }
 
 err_t sys_mon_cap_read(proc_t *p, const sys_args_t *args, uint64_t *ret)
@@ -466,8 +478,8 @@ err_t sys_sock_send(proc_t *p, const sys_args_t *args, uint64_t *ret)
 	const ipc_msg_t msg = {
 	    .src_buf = ctable_get(p->pid, args->sock.cap_idx),
 	    .send_cap = args->sock.send_cap,
-	    .data = {args->sock.data[0], args->sock.data[1], args->sock.data[1],
-		     args->sock.data[3]},
+	    .data
+	    = {args->sock.data[0], args->sock.data[1], args->sock.data[1], args->sock.data[3]},
 	};
 	return cap_sock_send(sock, &msg, (proc_t **)ret);
 }
@@ -486,8 +498,29 @@ err_t sys_sock_sendrecv(proc_t *p, const sys_args_t *args, uint64_t *ret)
 	const ipc_msg_t msg = {
 	    .src_buf = ctable_get(p->pid, args->sock.cap_idx),
 	    .send_cap = args->sock.send_cap,
-	    .data = {args->sock.data[0], args->sock.data[1], args->sock.data[1],
-		     args->sock.data[3]},
+	    .data
+	    = {args->sock.data[0], args->sock.data[1], args->sock.data[1], args->sock.data[3]},
 	};
 	return cap_sock_sendrecv(sock, &msg, (proc_t **)ret);
+}
+
+err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret)
+{
+	cte_t src = ctable_get(p->pid, args->path.idx);
+	cte_t dst = ctable_get(p->pid, args->path.dst_idx);
+	return path_derive(src, dst, args->path.path, args->path.flags);
+}
+
+err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret)
+{
+	cte_t file = ctable_get(p->pid, args->file.idx);
+	return read_file(cte_cap(file), args->file.offset, args->file.buf, args->file.buf_size,
+			 args->file.bytes_result);
+}
+
+err_t sys_write_file(proc_t *p, const sys_args_t *args, uint64_t *ret)
+{
+	cte_t file = ctable_get(p->pid, args->file.idx);
+	return write_file(cte_cap(file), args->file.offset, args->file.buf, args->file.buf_size,
+			  args->file.bytes_result);
 }

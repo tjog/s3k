@@ -69,6 +69,17 @@ cap_t cap_mk_socket(chan_t chan, ipc_mode_t mode, ipc_perm_t perm, uint32_t tag)
 	return cap;
 }
 
+cap_t cap_mk_path(uint32_t tag, path_flags_t flags)
+{
+	cap_t cap;
+	cap.path.type = CAPTY_PATH;
+	cap.path.file = flags & FILE;
+	cap.path.read = flags & PATH_READ;
+	cap.path.write = flags & PATH_WRITE;
+	cap.path.tag = tag;
+	return cap;
+}
+
 static inline bool is_range_subset(uint64_t a_bgn, uint64_t a_end, uint64_t b_bgn, uint64_t b_end)
 {
 	return a_bgn <= b_bgn && b_end <= a_end;

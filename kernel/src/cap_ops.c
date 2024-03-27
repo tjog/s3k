@@ -192,6 +192,7 @@ static void derive(cte_t src, cap_t scap, cte_t dst, cap_t ncap)
 			scap.chan.mrk = ncap.sock.chan + 1;
 		break;
 	case CAPTY_NONE:
+	case CAPTY_PATH:
 		KASSERT(0);
 	}
 	cte_insert(dst, ncap, src);
