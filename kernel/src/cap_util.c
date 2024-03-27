@@ -21,7 +21,7 @@ cap_t cap_mk_memory(addr_t bgn, addr_t end, rwx_t rwx)
 	cap.mem.tag = tag;
 	cap.mem.bgn = (bgn - (tag << MAX_BLOCK_SIZE)) >> MIN_BLOCK_SIZE;
 	cap.mem.end = (end - (tag << MAX_BLOCK_SIZE)) >> MIN_BLOCK_SIZE;
-	cap.mem.mrk = bgn;
+	cap.mem.mrk = cap.mem.bgn;
 	cap.mem.rwx = rwx;
 	cap.mem.lck = false;
 	return cap;
@@ -69,14 +69,12 @@ cap_t cap_mk_socket(chan_t chan, ipc_mode_t mode, ipc_perm_t perm, uint32_t tag)
 	return cap;
 }
 
-static inline bool is_range_subset(uint64_t a_bgn, uint64_t a_end,
-				   uint64_t b_bgn, uint64_t b_end)
+static inline bool is_range_subset(uint64_t a_bgn, uint64_t a_end, uint64_t b_bgn, uint64_t b_end)
 {
 	return a_bgn <= b_bgn && b_end <= a_end;
 }
 
-static inline bool is_range_prefix(uint64_t a_bgn, uint64_t a_end,
-				   uint64_t b_bgn, uint64_t b_end)
+static inline bool is_range_prefix(uint64_t a_bgn, uint64_t a_end, uint64_t b_bgn, uint64_t b_end)
 {
 	return a_bgn == b_bgn && b_end <= a_end;
 }
@@ -88,15 +86,13 @@ static inline bool is_bit_subset(uint64_t a, uint64_t b)
 
 static inline addr_t tag_block_to_addr(tag_t tag, block_t block)
 {
-	return ((uint64_t)tag << MAX_BLOCK_SIZE)
-	       + ((uint64_t)block << MIN_BLOCK_SIZE);
+	return ((uint64_t)tag << MAX_BLOCK_SIZE) + ((uint64_t)block << MIN_BLOCK_SIZE);
 }
 
 static bool cap_time_revokable(cap_t p, cap_t c)
 {
 	return (c.type == CAPTY_TIME) && (p.time.hart == c.time.hart)
-	       && is_range_subset(p.time.bgn, p.time.end, c.time.bgn,
-				  c.time.end);
+	       && is_range_subset(p.time.bgn, p.time.end, c.time.bgn, c.time.end);
 }
 
 static bool cap_mem_revokable(cap_t p, cap_t c)
@@ -121,18 +117,15 @@ static bool cap_mon_revokable(cap_t p, cap_t c)
 static bool cap_chan_revokable(cap_t p, cap_t c)
 {
 	if (c.type == CAPTY_SOCKET) {
-		return is_range_subset(p.chan.bgn, p.chan.end, c.sock.chan,
-				       c.sock.chan + 1);
+		return is_range_subset(p.chan.bgn, p.chan.end, c.sock.chan, c.sock.chan + 1);
 	}
 	return (c.type == CAPTY_CHANNEL)
-	       && is_range_subset(p.chan.bgn, p.chan.end, c.chan.bgn,
-				  c.chan.end);
+	       && is_range_subset(p.chan.bgn, p.chan.end, c.chan.bgn, c.chan.end);
 }
 
 static bool cap_sock_revokable(cap_t p, cap_t c)
 {
-	return (p.sock.tag == 0) && (c.sock.tag != 0)
-	       && (p.sock.chan == c.sock.chan);
+	return (p.sock.tag == 0) && (c.sock.tag != 0) && (p.sock.chan == c.sock.chan);
 }
 
 bool cap_is_revokable(cap_t p, cap_t c)
@@ -167,8 +160,7 @@ bool cap_is_valid(cap_t c)
 	case CAPTY_CHANNEL:
 		return (c.chan.bgn == c.chan.mrk) && (c.chan.bgn < c.chan.end);
 	case CAPTY_SOCKET:
-		return is_bit_subset(c.sock.perm, IPC_SDATA | IPC_CDATA
-						      | IPC_SCAP | IPC_CCAP)
+		return is_bit_subset(c.sock.perm, IPC_SDATA | IPC_CDATA | IPC_SCAP | IPC_CCAP)
 		       && is_bit_subset(c.sock.mode, IPC_YIELD | IPC_NOYIELD);
 	default:
 		return false;
@@ -178,8 +170,7 @@ bool cap_is_valid(cap_t c)
 static bool cap_time_derivable(cap_t p, cap_t c)
 {
 	return (c.type == CAPTY_TIME) && (p.time.hart == c.time.hart)
-	       && is_range_prefix(p.time.mrk, p.time.end, c.time.bgn,
-				  c.time.end);
+	       && is_range_prefix(p.time.mrk, p.time.end, c.time.bgn, c.time.end);
 }
 
 static bool cap_mem_derivable(cap_t p, cap_t c)
@@ -207,19 +198,16 @@ static bool cap_chan_derivable(cap_t p, cap_t c)
 {
 	if (c.type == CAPTY_SOCKET) {
 		return (c.sock.tag == 0)
-		       && is_range_subset(p.chan.mrk, p.chan.end, c.sock.chan,
-					  c.sock.chan + 1);
+		       && is_range_subset(p.chan.mrk, p.chan.end, c.sock.chan, c.sock.chan + 1);
 	}
 	return (c.type == CAPTY_CHANNEL)
-	       && is_range_subset(p.chan.mrk, p.chan.end, c.chan.bgn,
-				  c.chan.end);
+	       && is_range_subset(p.chan.mrk, p.chan.end, c.chan.bgn, c.chan.end);
 }
 
 static bool cap_sock_derivable(cap_t p, cap_t c)
 {
-	return (c.type == CAPTY_SOCKET) && (p.sock.chan == c.sock.chan)
-	       && (p.sock.tag == 0) && (c.sock.tag != 0)
-	       && (p.sock.mode == c.sock.mode) && (p.sock.perm == c.sock.perm);
+	return (c.type == CAPTY_SOCKET) && (p.sock.chan == c.sock.chan) && (p.sock.tag == 0)
+	       && (c.sock.tag != 0) && (p.sock.mode == c.sock.mode) && (p.sock.perm == c.sock.perm);
 }
 
 bool cap_is_derivable(cap_t p, cap_t c)
