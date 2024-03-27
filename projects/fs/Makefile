@@ -47,7 +47,7 @@ disk-image:
 
 disk-read:
 	mdir -i fs.img
-	mcopy -i fs.img ::/NEWFILE.TXT extracted.txt
+	mcopy -i fs.img ::/test.txt extracted.txt
 	cat < extracted.txt
 	rm extracted.txt
 
