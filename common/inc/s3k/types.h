@@ -90,6 +90,14 @@ typedef enum {
 	PATH_WRITE = 0x4, /* writable */
 } s3k_path_flags_t;
 
+typedef struct {
+	uint32_t fsize;	    /* Directory entry size */
+	uint16_t fdate;	    /* Modified date */
+	uint16_t ftime;	    /* Modified time */
+	uint8_t fattrib;    /* File attribute */
+	char fname[12 + 1]; /* File name */
+} s3k_dir_entry_info_t;
+
 // Capability types
 typedef enum s3k_capty {
 	S3K_CAPTY_NONE = 0,    ///< No capability.

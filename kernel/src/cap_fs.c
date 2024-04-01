@@ -327,6 +327,42 @@ ret:
 	return err;
 }
 
+err_t read_dir(cap_t path, size_t dir_entry_idx, dir_entry_info_t *out)
+{
+	FILINFO fi;
+	DIR di;
+	err_t err = SUCCESS;
+	FRESULT fr = f_opendir(&di, nodes[path.path.tag].path);
+	if (fr != FR_OK) {
+		err = ERR_FILE_OPEN;
+		goto out;
+	}
+	for (size_t i = 0; i <= dir_entry_idx; i++) {
+		fr = f_readdir(&di, &fi);
+		if (fr != FR_OK) {
+			err = ERR_FILE_SEEK;
+			goto cleanup;
+		}
+		// End of directory
+		if (fi.fname[0] == 0) {
+			err = ERR_INVALID_INDEX;
+			goto cleanup;
+		}
+	}
+	// Could do one larger memcpy here, but not certain FatFS file info and S3K
+	// file info will continue to stay in sync, so leverage the type safety of
+	// explicit structure assignment.
+	out->fattrib = fi.fattrib;
+	out->fdate = fi.fdate;
+	out->fsize = fi.fsize;
+	out->ftime = fi.ftime;
+	memcpy(out->fname, fi.fname, sizeof(fi.fname));
+cleanup:
+	f_closedir(&di);
+out:
+	return err;
+}
+
 err_t create_dir(cap_t path, bool ensure_create)
 {
 	FRESULT fr = f_mkdir(nodes[path.path.tag].path);

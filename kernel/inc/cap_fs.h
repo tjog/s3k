@@ -9,4 +9,5 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 		 uint32_t *bytes_written);
 void cap_path_clear(cap_t cap);
 err_t create_dir(cap_t path, bool ensure_create);
+err_t read_dir(cap_t path, size_t dir_entry_idx, dir_entry_info_t *out);
 err_t path_delete(cap_t path);

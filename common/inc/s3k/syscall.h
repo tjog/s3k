@@ -43,6 +43,7 @@ typedef enum {
 	S3K_SYS_WRITE_FILE,
 	S3K_SYS_CREATE_DIR,
 	S3K_SYS_PATH_DELETE,
+	S3K_SYS_READ_DIR,
 } s3k_syscall_t;
 
 uint64_t s3k_get_pid(void);
@@ -137,3 +138,8 @@ s3k_err_t s3k_create_dir(s3k_cidx_t idx, bool ensure_create);
  * Note this does not delete or revoke the referenced capability.
 */
 s3k_err_t s3k_path_delete(s3k_cidx_t idx);
+/**
+ * Retrieve the directory entry information at some index and store in the
+ * provided info structure.
+*/
+s3k_err_t s3k_read_dir(s3k_cidx_t directory, size_t dir_entry_idx, s3k_dir_entry_info_t *out);

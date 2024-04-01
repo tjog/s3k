@@ -47,6 +47,7 @@ typedef enum {
 	SYS_WRITE_FILE,
 	SYS_CREATE_DIR,
 	SYS_PATH_DELETE,
+	SYS_READ_DIR,
 } syscall_t;
 
 typedef union {
@@ -133,6 +134,12 @@ typedef union {
 		cidx_t idx;
 		bool ensure_create;
 	} create_dir;
+
+	struct {
+		cidx_t directory;
+		size_t dir_entry_idx;
+		dir_entry_info_t *out;
+	} read_dir;
 
 	struct {
 		cidx_t idx;
