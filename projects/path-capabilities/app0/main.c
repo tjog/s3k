@@ -131,7 +131,7 @@ int main(void)
 		return -1;
 	}
 	buf[bytes_read] = 0;
-	alt_printf("Succesful read, contents:\n%s\n", buf);
+	alt_printf("Successful read, contents:\n%s\n", buf);
 
 	err = s3k_create_dir(newdir_PATH, false); // could add "ensure create" flag here
 	if (err) {
@@ -145,12 +145,30 @@ int main(void)
 		alt_printf("Error from s3k_write_file: %d\n", err);
 		return -1;
 	}
-	alt_puts("Succesful write");
+	alt_puts("Successful write");
 	err = s3k_read_file(nested_PATH, 0, buf, sizeof(buf) - 1, &bytes_read);
 	if (err) {
 		alt_printf("Error from s3k_read_file: %d\n", err);
 		return -1;
 	}
 	buf[bytes_read] = 0;
-	alt_printf("Succesful read, contents:\n%s\n", buf);
+	alt_printf("Successful read, contents:\n%s\n", buf);
+	err = s3k_path_delete(nested_PATH);
+	if (err) {
+		alt_printf("Error from s3k_path_delete: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful delete of nested");
+	err = s3k_read_file(nested_PATH, 0, buf, sizeof(buf) - 1, &bytes_read);
+	if (err) {
+		alt_printf("Expected error from s3k_read_file: %d == %d = %d\n", err,
+			   S3K_ERR_FILE_OPEN, err == S3K_ERR_FILE_OPEN);
+	}
+	err = s3k_path_delete(newdir_PATH);
+	if (err) {
+		alt_printf("Error from s3k_path_delete: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful delete of newdir");
+	alt_puts("Successful execution of test program");
 }

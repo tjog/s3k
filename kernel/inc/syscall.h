@@ -46,6 +46,7 @@ typedef enum {
 	SYS_READ_FILE,
 	SYS_WRITE_FILE,
 	SYS_CREATE_DIR,
+	SYS_PATH_DELETE,
 } syscall_t;
 
 typedef union {
@@ -123,6 +124,10 @@ typedef union {
 		char *buf;
 		size_t n;
 	} read_path;
+
+	struct {
+		cidx_t idx;
+	} delete_path;
 
 	struct {
 		cidx_t idx;
