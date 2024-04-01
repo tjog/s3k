@@ -132,6 +132,12 @@ int main(void)
 	}
 	buf[bytes_read] = 0;
 	alt_printf("Succesful read, contents:\n%s\n", buf);
+
+	err = s3k_create_dir(newdir_PATH, false); // could add "ensure create" flag here
+	if (err) {
+		alt_printf("Error from s3k_create_dir: %d\n", err);
+		return -1;
+	}
 	char b[] = "Hello";
 	uint32_t res = 0;
 	err = s3k_write_file(nested_PATH, 0, b, sizeof(b), &res);

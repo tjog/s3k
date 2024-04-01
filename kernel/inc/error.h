@@ -27,4 +27,7 @@ typedef enum {
 	ERR_FILE_READ,
 	ERR_FILE_WRITE,
 	ERR_PATH_TOO_LONG,
+	ERR_PATH_EXISTS,
+	ERR_PATH_STAT,
+
 } err_t;

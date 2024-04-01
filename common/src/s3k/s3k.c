@@ -78,6 +78,11 @@ typedef union {
 
 	struct {
 		s3k_cidx_t idx;
+		bool ensure_create;
+	} create_dir;
+
+	struct {
+		s3k_cidx_t idx;
 		uint32_t offset;
 		uint8_t *buf;
 		uint32_t buf_size;
@@ -850,4 +855,15 @@ s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_
 		     }
 	     };
 	return do_ecall(S3K_SYS_WRITE_FILE, args).err;
+}
+
+s3k_err_t s3k_create_dir(s3k_cidx_t path, bool ensure_create)
+{
+	sys_args_t args = {
+	    .create_dir = {
+			   .idx = path,
+			   .ensure_create = ensure_create,
+			   }
+	     };
+	return do_ecall(S3K_SYS_CREATE_DIR, args).err;
 }
