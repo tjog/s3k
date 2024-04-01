@@ -326,6 +326,26 @@ cleanup:
 ret:
 	return err;
 }
+
+err_t create_dir(cap_t path, bool ensure_create)
+{
+	FRESULT fr = f_mkdir(nodes[path.path.tag].path);
+	if (fr == FR_EXIST) {
+		if (ensure_create)
+			return ERR_PATH_EXISTS;
+		// Check that the existing entry is a dir
+		FILINFO fno;
+		fr = f_stat(nodes[path.path.tag].path, &fno);
+		if (fr != FR_OK) {
+			return ERR_PATH_STAT;
+		}
+		if (fno.fattrib & AM_DIR)
+			return SUCCESS;
+		// Exists as file, not what we want
+		return ERR_PATH_EXISTS;
+	} else if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		return ERR_FILE_WRITE;
 	}
 	return SUCCESS;
 }

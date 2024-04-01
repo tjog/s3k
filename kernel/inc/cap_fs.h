@@ -8,3 +8,4 @@ err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, ui
 err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 		 uint32_t *bytes_written);
 void cap_path_clear(cap_t cap);
+err_t create_dir(cap_t path, bool ensure_create);

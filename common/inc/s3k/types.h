@@ -48,6 +48,8 @@ typedef enum {
 	S3K_ERR_FILE_READ,
 	S3K_ERR_FILE_WRITE,
 	S3K_ERR_PATH_TOO_LONG,
+	S3K_ERR_PATH_EXISTS,
+	S3K_ERR_PATH_STAT,
 } s3k_err_t;
 
 typedef enum {

@@ -41,6 +41,7 @@ typedef enum {
 	S3K_SYS_PATH_DERIVE,
 	S3K_SYS_READ_FILE,
 	S3K_SYS_WRITE_FILE,
+	S3K_SYS_CREATE_DIR,
 } s3k_syscall_t;
 
 uint64_t s3k_get_pid(void);
@@ -103,3 +104,4 @@ s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t
 			uint32_t *bytes_read);
 s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 			 uint32_t *bytes_written);
+s3k_err_t s3k_create_dir(s3k_cidx_t idx, bool ensure_create);
