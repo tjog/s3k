@@ -97,11 +97,36 @@ s3k_err_t s3k_try_sock_send(s3k_cidx_t sock_idx, const s3k_msg_t *msg);
 s3k_reply_t s3k_try_sock_recv(s3k_cidx_t sock_idx, s3k_cidx_t cap_cidx);
 s3k_reply_t s3k_try_sock_sendrecv(s3k_cidx_t sock_idx, const s3k_msg_t *msg);
 
+/**
+ * Used to read out the absolute path of a path capability into a buffer,
+ * Useful for debugging, does not touch file system state, only reads kernel
+ * saved buffer.
+*/
 s3k_err_t s3k_path_read(s3k_cidx_t idx, char *buf, size_t n);
+/**
+ * Derive new path capabilities using this function rather than the generic 
+ * capability derive, necessary to take a path and convert to a tag, which the
+ * kernel must be responsible for rather than user-space precreating the full
+ * capability.
+*/
 s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest,
 			  s3k_path_flags_t flags);
+/**
+ * Read a file at the specified offset, EOF is detected by checking bytes_read < buf_size.
+ * No persistent file descriptors exist.
+*/
 s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 			uint32_t *bytes_read);
+/**
+ * Write to a file at the specified offset, partial writes are detected by checking bytes_read < buf_size.
+ * No persistent file descriptors exist.
+*/
 s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 			 uint32_t *bytes_written);
+/**
+ * Creates a path physically on disk, errors if a parent path does not exist.
+ * Ensure create will error instead of silently succeed when the directory
+ * already exists. It will not silently succeed if the existing directory entry
+ * is a file rather than a directory.
+*/
 s3k_err_t s3k_create_dir(s3k_cidx_t idx, bool ensure_create);
