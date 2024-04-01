@@ -282,7 +282,7 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 		return SUCCESS; /* TODO: check that the pointer + size is within
 							memory restrictions of process */
 	case SYS_PATH_READ:
-		if (!valid_idx(args->path.idx))
+		if (!valid_idx(args->read_path.idx))
 			return ERR_INVALID_INDEX;
 		return SUCCESS;
 	case SYS_PATH_DERIVE:
