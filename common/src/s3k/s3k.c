@@ -86,6 +86,12 @@ typedef union {
 	} create_dir;
 
 	struct {
+		s3k_cidx_t directory;
+		size_t dir_entry_idx;
+		s3k_dir_entry_info_t *out;
+	} read_dir;
+
+	struct {
 		s3k_cidx_t idx;
 		uint32_t offset;
 		uint8_t *buf;
@@ -880,4 +886,16 @@ s3k_err_t s3k_path_delete(s3k_cidx_t path)
 			    }
 	     };
 	return do_ecall(S3K_SYS_PATH_DELETE, args).err;
+}
+
+s3k_err_t s3k_read_dir(s3k_cidx_t directory, size_t dir_entry_idx, s3k_dir_entry_info_t *out)
+{
+	sys_args_t args = {
+	    .read_dir = {
+			 .directory = directory,
+			 .dir_entry_idx = dir_entry_idx,
+			 .out = out,
+			 }
+	     };
+	return do_ecall(S3K_SYS_READ_DIR, args).err;
 }

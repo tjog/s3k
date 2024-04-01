@@ -54,6 +54,14 @@ typedef enum {
 	PATH_WRITE = 0x4, /* writable */
 } path_flags_t;
 
+typedef struct {
+	uint32_t fsize;	    /* Directory entry size */
+	uint16_t fdate;	    /* Modified date */
+	uint16_t ftime;	    /* Modified time */
+	uint8_t fattrib;    /* File attribute */
+	char fname[12 + 1]; /* File name */
+} dir_entry_info_t;
+
 // Capability types
 typedef enum capty {
 	CAPTY_NONE = 0,	   ///< No capability.

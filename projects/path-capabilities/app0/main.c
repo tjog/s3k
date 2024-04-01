@@ -170,5 +170,18 @@ int main(void)
 		return -1;
 	}
 	alt_puts("Successful delete of newdir");
+
+	s3k_dir_entry_info_t dei;
+	for (size_t i = 0; i < 5; i++) {
+		err = s3k_read_dir(ROOT_PATH, i, &dei);
+		if (err) {
+			alt_printf("Error from s3k_read_dir: %d\n", err);
+		} else {
+			alt_printf(
+			    "Entry: fattrib=0x%X, fdate=0x%X, ftime=0x%X, fsize=%d fname=%s\n",
+			    dei.fattrib, dei.fdate, dei.ftime, dei.fsize, dei.fname);
+		}
+	}
+
 	alt_puts("Successful execution of test program");
 }
