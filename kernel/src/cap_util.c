@@ -139,6 +139,9 @@ static bool cap_sock_revokable(cap_t p, cap_t c)
 	return (p.sock.tag == 0) && (c.sock.tag != 0) && (p.sock.chan == c.sock.chan);
 }
 
+// Defined in cap_fs
+bool cap_path_revokable(cap_t p, cap_t c);
+
 bool cap_is_revokable(cap_t p, cap_t c)
 {
 	switch (p.type) {
@@ -152,6 +155,8 @@ bool cap_is_revokable(cap_t p, cap_t c)
 		return cap_chan_revokable(p, c);
 	case CAPTY_SOCKET:
 		return cap_sock_revokable(p, c);
+	case CAPTY_PATH:
+		return cap_path_revokable(p, c);
 	default:
 		return false;
 	}

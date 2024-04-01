@@ -47,6 +47,7 @@ typedef enum {
 	S3K_ERR_FILE_SEEK,
 	S3K_ERR_FILE_READ,
 	S3K_ERR_FILE_WRITE,
+	S3K_ERR_PATH_TOO_LONG,
 } s3k_err_t;
 
 typedef enum {
@@ -96,6 +97,7 @@ typedef enum s3k_capty {
 	S3K_CAPTY_MONITOR = 4, ///< Monitor capability.
 	S3K_CAPTY_CHANNEL = 5, ///< IPC Channel capability.
 	S3K_CAPTY_SOCKET = 6,  ///< IPC Socket capability.
+	S3K_CAPTY_PATH = 7,    ///< File system path capability.
 } s3k_capty_t;
 
 /// Capability description

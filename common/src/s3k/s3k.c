@@ -72,6 +72,12 @@ typedef union {
 
 	struct {
 		s3k_cidx_t idx;
+		char *buf;
+		size_t n;
+	} read_path;
+
+	struct {
+		s3k_cidx_t idx;
 		uint32_t offset;
 		uint8_t *buf;
 		uint32_t buf_size;
@@ -789,6 +795,18 @@ s3k_reply_t s3k_try_sock_sendrecv(s3k_cidx_t sock_idx, const s3k_msg_t *msg)
 	reply.data[2] = a4;
 	reply.data[3] = a5;
 	return reply;
+}
+
+s3k_err_t s3k_path_read(s3k_cidx_t idx, char *buf, size_t n)
+{
+	sys_args_t args = {
+	    .read_path = {
+			  .idx = idx,
+			  .buf = buf,
+			  .n = n,
+			  }
+	     };
+	return do_ecall(S3K_SYS_PATH_READ, args).err;
 }
 
 s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, s3k_path_flags_t flags)

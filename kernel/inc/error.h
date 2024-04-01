@@ -26,4 +26,5 @@ typedef enum {
 	ERR_FILE_SEEK,
 	ERR_FILE_READ,
 	ERR_FILE_WRITE,
+	ERR_PATH_TOO_LONG,
 } err_t;

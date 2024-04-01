@@ -41,6 +41,7 @@ typedef enum {
 	SYS_SOCK_SENDRECV,
 
 	// Path+file calls
+	SYS_PATH_READ,
 	SYS_PATH_DERIVE,
 	SYS_READ_FILE,
 	SYS_WRITE_FILE,
@@ -115,6 +116,12 @@ typedef union {
 		const char *path;
 		path_flags_t flags;
 	} path;
+
+	struct {
+		cidx_t idx;
+		char *buf;
+		size_t n;
+	} read_path;
 
 	struct {
 		cidx_t idx;

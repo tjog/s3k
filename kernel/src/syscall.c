@@ -48,6 +48,7 @@ static err_t sys_sock_send(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_sock_recv(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_sock_sendrecv(proc_t *p, const sys_args_t *args, uint64_t *ret);
 
+static err_t sys_path_read(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_write_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
@@ -59,8 +60,8 @@ sys_handler_t handlers[]
        sys_cap_move,	   sys_cap_delete,    sys_cap_revoke,	sys_cap_derive,	   sys_pmp_load,
        sys_pmp_unload,	   sys_mon_suspend,   sys_mon_resume,	sys_mon_state_get, sys_mon_yield,
        sys_mon_reg_read,   sys_mon_reg_write, sys_mon_cap_read, sys_mon_cap_move,  sys_mon_pmp_load,
-       sys_mon_pmp_unload, sys_sock_send,     sys_sock_recv,	sys_sock_sendrecv, sys_path_derive,
-       sys_read_file,	   sys_write_file};
+       sys_mon_pmp_unload, sys_sock_send,     sys_sock_recv,	sys_sock_sendrecv, sys_path_read,
+       sys_path_derive,	   sys_read_file,     sys_write_file};
 
 void handle_syscall(proc_t *p)
 {
@@ -280,6 +281,10 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 			return ERR_INVALID_INDEX;
 		return SUCCESS; /* TODO: check that the pointer + size is within
 							memory restrictions of process */
+	case SYS_PATH_READ:
+		if (!valid_idx(args->path.idx))
+			return ERR_INVALID_INDEX;
+		return SUCCESS;
 	case SYS_PATH_DERIVE:
 		if (!valid_idx(args->path.idx))
 			return ERR_INVALID_INDEX;
@@ -502,6 +507,12 @@ err_t sys_sock_sendrecv(proc_t *p, const sys_args_t *args, uint64_t *ret)
 	    = {args->sock.data[0], args->sock.data[1], args->sock.data[1], args->sock.data[3]},
 	};
 	return cap_sock_sendrecv(sock, &msg, (proc_t **)ret);
+}
+
+err_t sys_path_read(proc_t *p, const sys_args_t *args, uint64_t *ret)
+{
+	cte_t path = ctable_get(p->pid, args->read_path.idx);
+	return path_read(cte_cap(path), args->read_path.buf, args->read_path.n);
 }
 
 err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret)
