@@ -301,21 +301,31 @@ err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, ui
 {
 	FIL Fil; /* File object needed for each open file */
 	FRESULT fr;
+	err_t err = SUCCESS;
 
 	fr = f_open(&Fil, nodes[path.path.tag].path, FA_READ);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_OPEN;
+		err = ERR_FILE_OPEN;
+		goto ret;
 	}
 	fr = f_lseek(&Fil, offset);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_SEEK;
+		err = ERR_FILE_SEEK;
+		goto cleanup;
 	}
 	fr = f_read(&Fil, buf, buf_size, bytes_read);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_READ;
+		err = ERR_FILE_READ;
+		goto cleanup;
+	}
+cleanup:
+	f_close(&Fil);
+ret:
+	return err;
+}
 	}
 	return SUCCESS;
 }
@@ -325,23 +335,30 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 {
 	FIL Fil; /* File object needed for each open file */
 	FRESULT fr;
+	err_t err = SUCCESS;
 
 	fr = f_open(&Fil, nodes[path.path.tag].path, FA_WRITE | FA_CREATE_ALWAYS);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_OPEN;
+		err = ERR_FILE_OPEN;
+		goto ret;
 	}
 	fr = f_lseek(&Fil, offset);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_SEEK;
+		err = ERR_FILE_SEEK;
+		goto cleanup;
 	}
 	fr = f_write(&Fil, buf, buf_size, bytes_written);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_READ;
+		err = ERR_FILE_READ;
+		goto cleanup;
 	}
-	return SUCCESS;
+cleanup:
+	f_close(&Fil);
+ret:
+	return err;
 }
 
 void cap_path_clear(cap_t cap)
