@@ -42,6 +42,7 @@ typedef enum {
 	S3K_SYS_READ_FILE,
 	S3K_SYS_WRITE_FILE,
 	S3K_SYS_CREATE_DIR,
+	S3K_SYS_PATH_DELETE,
 } s3k_syscall_t;
 
 uint64_t s3k_get_pid(void);
@@ -130,3 +131,9 @@ s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_
  * is a file rather than a directory.
 */
 s3k_err_t s3k_create_dir(s3k_cidx_t idx, bool ensure_create);
+/**
+ * Deletes a path if on disk, returns an error if not found or delete operation is unsuccesful.
+ * If directory, it must be empty before deletion can succeed.
+ * Note this does not delete or revoke the referenced capability.
+*/
+s3k_err_t s3k_path_delete(s3k_cidx_t idx);

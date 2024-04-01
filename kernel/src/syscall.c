@@ -53,6 +53,7 @@ static err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_write_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_create_dir(proc_t *p, const sys_args_t *args, uint64_t *ret);
+static err_t sys_path_delete(proc_t *p, const sys_args_t *args, uint64_t *ret);
 
 typedef err_t (*sys_handler_t)(proc_t *, const sys_args_t *, uint64_t *);
 
@@ -62,7 +63,7 @@ sys_handler_t handlers[]
        sys_pmp_unload,	   sys_mon_suspend,   sys_mon_resume,	sys_mon_state_get, sys_mon_yield,
        sys_mon_reg_read,   sys_mon_reg_write, sys_mon_cap_read, sys_mon_cap_move,  sys_mon_pmp_load,
        sys_mon_pmp_unload, sys_sock_send,     sys_sock_recv,	sys_sock_sendrecv, sys_path_read,
-       sys_path_derive,	   sys_read_file,     sys_write_file,	sys_create_dir};
+       sys_path_derive,	   sys_read_file,     sys_write_file,	sys_create_dir,	   sys_path_delete};
 
 void handle_syscall(proc_t *p)
 {
@@ -285,6 +286,10 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 
 	case SYS_PATH_READ:
 		if (!valid_idx(args->read_path.idx))
+			return ERR_INVALID_INDEX;
+		return SUCCESS;
+	case SYS_PATH_DELETE:
+		if (!valid_idx(args->delete_path.idx))
 			return ERR_INVALID_INDEX;
 		return SUCCESS;
 	case SYS_PATH_DERIVE:
@@ -546,4 +551,10 @@ err_t sys_create_dir(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t path = ctable_get(p->pid, args->create_dir.idx);
 	return create_dir(cte_cap(path), args->create_dir.ensure_create);
+}
+
+err_t sys_path_delete(proc_t *p, const sys_args_t *args, uint64_t *ret)
+{
+	cte_t path = ctable_get(p->pid, args->delete_path.idx);
+	return path_delete(cte_cap(path));
 }

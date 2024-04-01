@@ -78,6 +78,10 @@ typedef union {
 
 	struct {
 		s3k_cidx_t idx;
+	} delete_path;
+
+	struct {
+		s3k_cidx_t idx;
 		bool ensure_create;
 	} create_dir;
 
@@ -866,4 +870,14 @@ s3k_err_t s3k_create_dir(s3k_cidx_t path, bool ensure_create)
 			   }
 	     };
 	return do_ecall(S3K_SYS_CREATE_DIR, args).err;
+}
+
+s3k_err_t s3k_path_delete(s3k_cidx_t path)
+{
+	sys_args_t args = {
+	    .delete_path = {
+			    .idx = path,
+			    }
+	     };
+	return do_ecall(S3K_SYS_PATH_DELETE, args).err;
 }

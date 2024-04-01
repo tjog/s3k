@@ -423,3 +423,16 @@ void cap_path_clear(cap_t cap)
 	// Clear the memory
 	memset(del_node, 0, sizeof(tree_node_t));
 }
+
+err_t path_delete(cap_t path)
+{
+	FRESULT fr = f_unlink(nodes[path.path.tag].path);
+	if (fr == FR_DENIED) {
+		// Not empty, is current directory, or read-only attribute
+		return ERR_PATH_EXISTS;
+	} else if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		return ERR_FILE_WRITE;
+	}
+	return SUCCESS;
+}
