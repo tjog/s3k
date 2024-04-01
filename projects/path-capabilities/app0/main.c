@@ -95,7 +95,8 @@ int main(void)
 		alt_printf("Error from path derive: 0x%X", err);
 		return -1;
 	}
-	err = s3k_path_derive(newdir_PATH, "nested.txt", nested_PATH, PATH_READ | PATH_WRITE);
+	err = s3k_path_derive(newdir_PATH, "nested.txt", nested_PATH,
+			      FILE | PATH_READ | PATH_WRITE);
 	if (err) {
 		alt_printf("Error from path derive: 0x%X", err);
 		return -1;
@@ -122,11 +123,28 @@ int main(void)
 		alt_putchar('\n');
 	}
 
+	uint8_t buf[50];
+	uint32_t bytes_read;
+	err = s3k_read_file(newfile_PATH, 0, buf, sizeof(buf) - 1, &bytes_read);
+	if (err) {
+		alt_printf("Error from s3k_read_file: %d\n", err);
+		return -1;
+	}
+	buf[bytes_read] = 0;
+	alt_printf("Succesful read, contents:\n%s\n", buf);
 	char b[] = "Hello";
 	uint32_t res = 0;
 	err = s3k_write_file(nested_PATH, 0, b, sizeof(b), &res);
 	if (err) {
-		alt_printf("Error from s3k_write_file: %d", err);
+		alt_printf("Error from s3k_write_file: %d\n", err);
 		return -1;
 	}
+	alt_puts("Succesful write");
+	err = s3k_read_file(nested_PATH, 0, buf, sizeof(buf) - 1, &bytes_read);
+	if (err) {
+		alt_printf("Error from s3k_read_file: %d\n", err);
+		return -1;
+	}
+	buf[bytes_read] = 0;
+	alt_printf("Succesful read, contents:\n%s\n", buf);
 }
