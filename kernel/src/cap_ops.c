@@ -73,6 +73,7 @@ static void delete_hook(cte_t c, cap_t cap)
 		break;
 	case CAPTY_PATH:
 		cap_path_clear(cap);
+		break;
 	default:
 		break;
 	}
