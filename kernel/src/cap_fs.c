@@ -250,53 +250,6 @@ bool cap_path_revokable(cap_t p, cap_t c)
 	return (c.type == CAPTY_PATH) && nodes[c.path.tag].parent == p.path.tag;
 }
 
-err_t path_revoke(cte_t src, cte_t dst, const char *path, path_flags_t flags)
-{
-	if (!cte_cap(src).type)
-		return ERR_SRC_EMPTY;
-
-	if (cte_cap(dst).type)
-		return ERR_DST_OCCUPIED;
-	cap_t scap = cte_cap(src);
-
-	if (scap.type != CAPTY_PATH)
-		return ERR_INVALID_DERIVATION;
-
-	// Can only derive file to file when not using a new path i.e NULL pointer (0)
-	if (scap.path.file && path != NULL)
-		return ERR_INVALID_DERIVATION;
-
-	// Can the system handle more path storage?
-	int new_idx = find_next_free_idx();
-	if (new_idx == -1) {
-		return ERR_NO_PATH_TAG;
-	}
-
-	tree_node_t *src_node = &nodes[scap.path.tag];
-	tree_node_t *dest_node = &nodes[new_idx];
-	*dest_node = (tree_node_t){
-	    .parent = scap.path.tag,
-	    // Newly derived, no children
-	    .first_child = 0,
-	    // If our parent already had a child, use it as our sibling, we then
-	    // overwrite first child of parent below. If no existing child, we will copy
-	    // 0 which will be the NULL sibling.
-	    .next_sibling = nodes[src_node->first_child].next_sibling,
-	    // Path is strscpy'd below after
-	    .occupied = true};
-
-	src_node->first_child = new_idx;
-	strscpy(nodes[new_idx].path, path, MAX_PATH);
-	cap_t ncap = cap_mk_path(new_idx, flags);
-
-	current_idx = new_idx;
-
-	cte_insert(dst, ncap, src);
-	cte_set_cap(src, scap);
-
-	return SUCCESS;
-}
-
 err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, uint32_t *bytes_read)
 {
 	FIL Fil; /* File object needed for each open file */
