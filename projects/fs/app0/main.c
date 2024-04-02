@@ -17,11 +17,12 @@
 #define MONITOR 8
 #define CHANNEL 9
 #define VIRTIO_MEM 10
+#define ROOT_PATH 11
 
 // Derived
-#define UART_PMP 11
+#define UART_PMP 12
 #define UART_PMP_SLOT 1
-#define VIRTIO_PMP 12
+#define VIRTIO_PMP 13
 #define VIRTIO_PMP_SLOT 2
 
 char *fresult_get_error(FRESULT fr)

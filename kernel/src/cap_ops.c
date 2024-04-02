@@ -1,5 +1,6 @@
 #include "cap_ops.h"
 
+#include "cap_fs.h"
 #include "cap_ipc.h"
 #include "cap_util.h"
 #include "pmp.h"
@@ -70,6 +71,8 @@ static void delete_hook(cte_t c, cap_t cap)
 	case CAPTY_SOCKET:
 		cap_sock_clear(cap, proc_get(cte_pid(c)));
 		break;
+	case CAPTY_PATH:
+		cap_path_clear(cap);
 	default:
 		break;
 	}
@@ -118,10 +121,16 @@ void cap_reclaim(cte_t p, cap_t pcap, cte_t c, cap_t ccap)
 	case CAPTY_SOCKET:
 		cap_sock_clear(ccap, proc_get(cte_pid(c)));
 		return;
+	case CAPTY_PATH:
+		cap_path_clear(cte_cap(c));
+		return;
 	default:
 		KASSERT(0);
 	}
 
+	// This is only necessary when parent tracks something, e.g. all the slice
+	// capability types. Capabilities not tracking donated resources can skip
+	// this point and return directly after clearing (e.g. PMP, socket, and path)
 	cte_set_cap(p, pcap);
 
 	return;
@@ -191,6 +200,7 @@ static void derive(cte_t src, cap_t scap, cte_t dst, cap_t ncap)
 		if (ncap.sock.tag == 0)
 			scap.chan.mrk = ncap.sock.chan + 1;
 		break;
+	case CAPTY_PATH: // Should use path derive
 	case CAPTY_NONE:
 		KASSERT(0);
 	}

@@ -41,6 +41,15 @@ typedef enum {
 	S3K_ERR_PREEMPTED,
 	S3K_ERR_TIMEOUT,
 	S3K_ERR_SUSPENDED,
+
+	S3K_ERR_NO_PATH_TAG,
+	S3K_ERR_FILE_OPEN,
+	S3K_ERR_FILE_SEEK,
+	S3K_ERR_FILE_READ,
+	S3K_ERR_FILE_WRITE,
+	S3K_ERR_PATH_TOO_LONG,
+	S3K_ERR_PATH_EXISTS,
+	S3K_ERR_PATH_STAT,
 } s3k_err_t;
 
 typedef enum {
@@ -74,6 +83,21 @@ typedef enum {
 	S3K_IPC_CCAP = 0x8,  // Client can send capabilities
 } s3k_ipc_perm_t;
 
+// Path permissions
+typedef enum {
+	FILE = 0x1,	  /* file or directory */
+	PATH_READ = 0x2,  /* readable */
+	PATH_WRITE = 0x4, /* writable */
+} s3k_path_flags_t;
+
+typedef struct {
+	uint32_t fsize;	    /* Directory entry size */
+	uint16_t fdate;	    /* Modified date */
+	uint16_t ftime;	    /* Modified time */
+	uint8_t fattrib;    /* File attribute */
+	char fname[12 + 1]; /* File name */
+} s3k_dir_entry_info_t;
+
 // Capability types
 typedef enum s3k_capty {
 	S3K_CAPTY_NONE = 0,    ///< No capability.
@@ -83,6 +107,7 @@ typedef enum s3k_capty {
 	S3K_CAPTY_MONITOR = 4, ///< Monitor capability.
 	S3K_CAPTY_CHANNEL = 5, ///< IPC Channel capability.
 	S3K_CAPTY_SOCKET = 6,  ///< IPC Socket capability.
+	S3K_CAPTY_PATH = 7,    ///< File system path capability.
 } s3k_capty_t;
 
 /// Capability description
@@ -141,6 +166,15 @@ typedef union s3k_cap {
 		s3k_chan_t chan;
 		uint32_t tag;
 	} sock;
+
+	struct {
+		s3k_capty_t type : 4;
+		bool file : 1;
+		bool read : 1;
+		bool write : 1;
+		uint32_t _padding : 25;
+		uint32_t tag;
+	} path;
 } s3k_cap_t;
 
 _Static_assert(sizeof(s3k_cap_t) == 8, "s3k_cap_t has the wrong size");

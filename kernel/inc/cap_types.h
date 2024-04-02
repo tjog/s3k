@@ -47,6 +47,21 @@ typedef enum {
 	IPC_CCAP = 0x8,	 // Client can send capabilities
 } ipc_perm_t;
 
+// Path permissions
+typedef enum {
+	FILE = 0x1,	  /* file or directory */
+	PATH_READ = 0x2,  /* readable */
+	PATH_WRITE = 0x4, /* writable */
+} path_flags_t;
+
+typedef struct {
+	uint32_t fsize;	    /* Directory entry size */
+	uint16_t fdate;	    /* Modified date */
+	uint16_t ftime;	    /* Modified time */
+	uint8_t fattrib;    /* File attribute */
+	char fname[12 + 1]; /* File name */
+} dir_entry_info_t;
+
 // Capability types
 typedef enum capty {
 	CAPTY_NONE = 0,	   ///< No capability.
@@ -56,6 +71,7 @@ typedef enum capty {
 	CAPTY_MONITOR = 4, ///< Monitor capability.
 	CAPTY_CHANNEL = 5, ///< IPC Channel capability.
 	CAPTY_SOCKET = 6,  ///< IPC Socket capability.
+	CAPTY_PATH = 7,	   ///< File system path capability.
 } capty_t;
 
 /// Capability description
@@ -114,6 +130,16 @@ typedef union cap {
 		chan_t chan;
 		uint32_t tag;
 	} sock;
+
+	struct {
+		capty_t type : 4;
+		bool file : 1;
+		bool read : 1;
+		bool write : 1;
+		uint32_t _padding : 25;
+		uint32_t tag;
+	} path;
+
 } cap_t;
 
 _Static_assert(sizeof(cap_t) == 8, "cap_t has the wrong size");

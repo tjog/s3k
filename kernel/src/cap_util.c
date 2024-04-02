@@ -69,6 +69,17 @@ cap_t cap_mk_socket(chan_t chan, ipc_mode_t mode, ipc_perm_t perm, uint32_t tag)
 	return cap;
 }
 
+cap_t cap_mk_path(uint32_t tag, path_flags_t flags)
+{
+	cap_t cap;
+	cap.path.type = CAPTY_PATH;
+	cap.path.file = flags & FILE;
+	cap.path.read = flags & PATH_READ;
+	cap.path.write = flags & PATH_WRITE;
+	cap.path.tag = tag;
+	return cap;
+}
+
 static inline bool is_range_subset(uint64_t a_bgn, uint64_t a_end, uint64_t b_bgn, uint64_t b_end)
 {
 	return a_bgn <= b_bgn && b_end <= a_end;
@@ -128,6 +139,9 @@ static bool cap_sock_revokable(cap_t p, cap_t c)
 	return (p.sock.tag == 0) && (c.sock.tag != 0) && (p.sock.chan == c.sock.chan);
 }
 
+// Defined in cap_fs
+bool cap_path_revokable(cap_t p, cap_t c);
+
 bool cap_is_revokable(cap_t p, cap_t c)
 {
 	switch (p.type) {
@@ -141,6 +155,8 @@ bool cap_is_revokable(cap_t p, cap_t c)
 		return cap_chan_revokable(p, c);
 	case CAPTY_SOCKET:
 		return cap_sock_revokable(p, c);
+	case CAPTY_PATH:
+		return cap_path_revokable(p, c);
 	default:
 		return false;
 	}

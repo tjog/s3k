@@ -39,6 +39,15 @@ typedef enum {
 	SYS_SOCK_SEND,
 	SYS_SOCK_RECV,
 	SYS_SOCK_SENDRECV,
+
+	// Path+file calls
+	SYS_PATH_READ,
+	SYS_PATH_DERIVE,
+	SYS_READ_FILE,
+	SYS_WRITE_FILE,
+	SYS_CREATE_DIR,
+	SYS_PATH_DELETE,
+	SYS_READ_DIR,
 } syscall_t;
 
 typedef union {
@@ -103,6 +112,43 @@ typedef union {
 		bool send_cap;
 		uint64_t data[4];
 	} sock;
+
+	struct {
+		cidx_t idx;
+		cidx_t dst_idx;
+		const char *path;
+		path_flags_t flags;
+	} path;
+
+	struct {
+		cidx_t idx;
+		char *buf;
+		size_t n;
+	} read_path;
+
+	struct {
+		cidx_t idx;
+	} delete_path;
+
+	struct {
+		cidx_t idx;
+		bool ensure_create;
+	} create_dir;
+
+	struct {
+		cidx_t directory;
+		size_t dir_entry_idx;
+		dir_entry_info_t *out;
+	} read_dir;
+
+	struct {
+		cidx_t idx;
+		uint32_t offset;
+		uint8_t *buf;
+		uint32_t buf_size;
+		uint32_t *bytes_result;
+	} file;
+
 } sys_args_t;
 
 _Static_assert(sizeof(sys_args_t) == 64, "sys_args_t has the wrong size");
