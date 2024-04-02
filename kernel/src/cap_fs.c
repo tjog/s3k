@@ -83,6 +83,33 @@ char *fresult_get_error(FRESULT fr)
 	}
 }
 
+/**
+ * Debugging facility
+*/
+static void dump_tree(uint32_t tag, int depth)
+{
+	if (!nodes[tag].occupied) {
+		// Handle empty or unoccupied nodes (optional)
+		alt_printf("Unoccupied node, BUG!!!\n");
+		return;
+	}
+
+	for (int i = 0; i < depth; i++) {
+		alt_putchar('\t');
+	}
+
+	tree_node_t *n = &nodes[tag];
+	alt_printf("Node %d: %s, parent=%d, occupied=%d, first_child=%d, next_sibling=%d\n", tag,
+		   n->path, n->parent, n->occupied, n->first_child, n->next_sibling);
+
+	// Recursively dump children
+	uint32_t child = n->first_child;
+	while (child) {
+		dump_tree(child, depth + 1);
+		child = nodes[child].next_sibling;
+	}
+}
+
 void fs_init()
 {
 	FRESULT fr;
@@ -221,6 +248,9 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, path_flags_t flags)
 	    // Path is strscpy'd below after
 	    // Occupied only updated after we are sure to finish the derivation
 	};
+
+	alt_printf("Dumping tree for ROOT:\n");
+	dump_tree(0, 0);
 
 	src_node->first_child = new_idx;
 	// Copy path
@@ -372,6 +402,9 @@ ret:
 
 void cap_path_clear(cap_t cap)
 {
+	alt_printf("Dumping tree for ROOT before:\n");
+	dump_tree(0, 0);
+
 	// Set to not occupied, remove all referencese in tree.
 	/*
 			A
@@ -411,8 +444,10 @@ void cap_path_clear(cap_t cap)
 		del_node_child->next_sibling = del_node->next_sibling;
 	}
 
-	// Clear the memory
+	// Clear the memory (i.e. occupied = false etc)
 	memset(del_node, 0, sizeof(tree_node_t));
+	alt_printf("Dumping tree for ROOT after:\n");
+	dump_tree(0, 0);
 }
 
 err_t path_delete(cap_t path)

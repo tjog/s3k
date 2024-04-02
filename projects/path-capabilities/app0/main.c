@@ -76,6 +76,31 @@ void print_cap(s3k_cap_t cap)
 	}
 }
 
+void dump_caps(size_t count)
+{
+	for (size_t i = 0; i < count; i++) {
+		alt_printf("Capability %d: ", i);
+		s3k_cap_t cap;
+		s3k_err_t err = s3k_cap_read(i, &cap);
+		if (!err) {
+			print_cap(cap);
+			if (cap.type == S3K_CAPTY_PATH) {
+				char buf[50];
+				s3k_err_t err = s3k_path_read(i, buf, 50);
+				if (!err) {
+					alt_putstr(" (='");
+					alt_putstr(buf);
+					alt_putstr("')");
+				}
+			}
+		} else {
+			alt_putstr("NONE");
+			alt_printf(" (Error from s3k_cap_read: 0x%X)", err);
+		}
+		alt_putchar('\n');
+	}
+}
+
 int main(void)
 {
 	s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
@@ -102,26 +127,7 @@ int main(void)
 		return -1;
 	}
 
-	for (size_t i = 0; i < 16; i++) {
-		alt_printf("Capability %d: ", i);
-		s3k_cap_t cap;
-		s3k_err_t err = s3k_cap_read(i, &cap);
-		if (!err) {
-			print_cap(cap);
-		} else {
-			alt_putstr("NONE");
-		}
-		if (cap.type == S3K_CAPTY_PATH) {
-			char buf[50];
-			s3k_err_t err = s3k_path_read(i, buf, 50);
-			if (!err) {
-				alt_putstr(" (='");
-				alt_putstr(buf);
-				alt_putstr("')");
-			}
-		}
-		alt_putchar('\n');
-	}
+	dump_caps(16);
 
 	uint8_t buf[50];
 	uint32_t bytes_read;
@@ -133,7 +139,8 @@ int main(void)
 	buf[bytes_read] = 0;
 	alt_printf("Successful read, contents:\n%s\n", buf);
 
-	err = s3k_create_dir(newdir_PATH, false); // could add "ensure create" flag here
+	err = s3k_create_dir(newdir_PATH,
+			     false); // could add "ensure create" flag here
 	if (err) {
 		alt_printf("Error from s3k_create_dir: %d\n", err);
 		return -1;
@@ -164,6 +171,7 @@ int main(void)
 		alt_printf("Expected error from s3k_read_file: %d == %d = %d\n", err,
 			   S3K_ERR_FILE_OPEN, err == S3K_ERR_FILE_OPEN);
 	}
+	buf[bytes_read] = 0;
 	err = s3k_path_delete(newdir_PATH);
 	if (err) {
 		alt_printf("Error from s3k_path_delete: %d\n", err);
@@ -182,6 +190,66 @@ int main(void)
 			    dei.fattrib, dei.fdate, dei.ftime, dei.fsize, dei.fname);
 		}
 	}
+	alt_puts("Successful iteration of root dir");
+
+	// err = s3k_cap_revoke(newdir_PATH);
+	// if (err) {
+	// 	alt_printf("Error from s3k_cap_revoke: %d\n", err);
+	// 	return -1;
+	// }
+	// alt_puts("Successful revocation of newdir");
+	// dump_caps(16);
+	err = s3k_cap_revoke(nested_PATH);
+	if (err) {
+		alt_printf("Error from s3k_cap_revoke: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful revocation of nested file (should do nothing, is a leaf)");
+	dump_caps(16);
+	err = s3k_cap_delete(nested_PATH);
+	if (err) {
+		alt_printf("Error from s3k_cap_delete: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful deletion of nested file");
+	dump_caps(16);
+	err = s3k_path_derive(newdir_PATH, "nested1.txt", nested_PATH + 1,
+			      FILE | PATH_READ | PATH_WRITE);
+	if (err) {
+		alt_printf("Error from s3k_path_derive: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful derivation of nested1.txt");
+
+	err = s3k_path_derive(newdir_PATH, "nested2.txt", nested_PATH + 2,
+			      FILE | PATH_READ | PATH_WRITE);
+	if (err) {
+		alt_printf("Error from s3k_path_derive: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful derivation of nested2.txt");
+
+	err = s3k_path_derive(nested_PATH + 2, NULL, nested_PATH + 3, FILE | PATH_READ);
+	if (err) {
+		alt_printf("Error from s3k_path_derive: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful derivation of nested2.txt readonly");
+
+	err = s3k_cap_delete(newdir_PATH);
+	if (err) {
+		alt_printf("Error from s3k_cap_delete: %d\n", err);
+		return -1;
+	}
+	dump_caps(19);
+
+	err = s3k_cap_revoke(ROOT_PATH);
+	if (err) {
+		alt_printf("Error from s3k_cap_revoke: %d\n", err);
+		return -1;
+	}
+	alt_puts("Successful revocation of root dir");
+	dump_caps(19);
 
 	alt_puts("Successful execution of test program");
 }
