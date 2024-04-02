@@ -122,7 +122,7 @@ void cap_reclaim(cte_t p, cap_t pcap, cte_t c, cap_t ccap)
 		cap_sock_clear(ccap, proc_get(cte_pid(c)));
 		return;
 	case CAPTY_PATH:
-		cap_path_clear(cte_cap(c));
+		cap_path_clear(ccap);
 		return;
 	default:
 		KASSERT(0);

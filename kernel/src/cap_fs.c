@@ -217,7 +217,7 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, path_flags_t flags)
 	    // If our parent already had a child, use it as our sibling, we then
 	    // overwrite first child of parent below. If no existing child, we will copy
 	    // 0 which will be the NULL sibling.
-	    .next_sibling = nodes[src_node->first_child].next_sibling,
+	    .next_sibling = src_node->first_child,
 	    // Path is strscpy'd below after
 	    // Occupied only updated after we are sure to finish the derivation
 	};
@@ -394,7 +394,9 @@ void cap_path_clear(cap_t cap)
 	while (*ref_to_del_node != del_idx)
 		ref_to_del_node = &nodes[*ref_to_del_node].next_sibling;
 
-	*ref_to_del_node = del_node->first_child;
+	// The reference should reference the first child if the del_node has children,
+	// or the next sibling if not.
+	*ref_to_del_node = del_node->first_child ? del_node->first_child : del_node->next_sibling;
 
 	if (del_node->first_child) {
 		// Update all del_node children to have correct new parent
