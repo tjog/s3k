@@ -215,14 +215,22 @@ err_t path_read(cap_t path, char *buf, size_t n)
 
 err_t path_derive(cte_t src, cte_t dst, const char *path, path_flags_t flags)
 {
-	if (!cte_cap(src).type)
+	cap_t scap = cte_cap(src);
+	if (!scap.type)
 		return ERR_SRC_EMPTY;
 
 	if (cte_cap(dst).type)
 		return ERR_DST_OCCUPIED;
-	cap_t scap = cte_cap(src);
 
 	if (scap.type != CAPTY_PATH)
+		return ERR_INVALID_DERIVATION;
+
+	// Cannot derive file to directory
+	if (((flags & FILE) == FILE) < scap.path.file)
+		return ERR_INVALID_DERIVATION;
+	// Cannot elevate read or write privilege
+	if ((((flags & PATH_READ) == PATH_READ) && !scap.path.read)
+	    || (((flags & PATH_WRITE) == PATH_WRITE) && !scap.path.write))
 		return ERR_INVALID_DERIVATION;
 
 	// Can only derive file to file when not using a new path i.e NULL pointer (0)
@@ -348,6 +356,8 @@ out:
 
 err_t create_dir(cap_t path, bool ensure_create)
 {
+	if (path.path.type != CAPTY_PATH || path.path.file || !path.path.write)
+		return ERR_INVALID_INDEX;
 	FRESULT fr = f_mkdir(nodes[path.path.tag].path);
 	if (fr == FR_EXIST) {
 		if (ensure_create)
@@ -372,11 +382,15 @@ err_t create_dir(cap_t path, bool ensure_create)
 err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 		 uint32_t *bytes_written)
 {
+	if (path.path.type != CAPTY_PATH || !path.path.file || !path.path.write)
+		return ERR_INVALID_INDEX;
+
 	FIL Fil; /* File object needed for each open file */
 	FRESULT fr;
 	err_t err = SUCCESS;
 
-	fr = f_open(&Fil, nodes[path.path.tag].path, FA_WRITE | FA_CREATE_ALWAYS);
+	// FA_OPEN_ALWAYS means open the existing file or create it, i.e. succeed in both cases
+	fr = f_open(&Fil, nodes[path.path.tag].path, FA_WRITE | FA_OPEN_ALWAYS);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
 		err = ERR_FILE_OPEN;
@@ -452,6 +466,9 @@ void cap_path_clear(cap_t cap)
 
 err_t path_delete(cap_t path)
 {
+	if (path.path.type != CAPTY_PATH || !path.path.write)
+		return ERR_INVALID_INDEX;
+
 	FRESULT fr = f_unlink(nodes[path.path.tag].path);
 	if (fr == FR_DENIED) {
 		// Not empty, is current directory, or read-only attribute
