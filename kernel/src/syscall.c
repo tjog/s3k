@@ -606,7 +606,7 @@ err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t src = ctable_get(p->pid, args->path.idx);
 	cte_t dst = ctable_get(p->pid, args->path.dst_idx);
-	return path_derive(src, dst, args->path.path, args->path.flags);
+	return path_derive(src, dst, args->path.path, args->path.space, args->path.flags);
 }
 
 err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret)

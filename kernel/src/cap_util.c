@@ -69,13 +69,14 @@ cap_t cap_mk_socket(chan_t chan, ipc_mode_t mode, ipc_perm_t perm, uint32_t tag)
 	return cap;
 }
 
-cap_t cap_mk_path(uint32_t tag, path_flags_t flags)
+cap_t cap_mk_path(uint32_t tag, uint16_t space, path_flags_t flags)
 {
 	cap_t cap;
 	cap.path.type = CAPTY_PATH;
 	cap.path.file = flags & FILE;
 	cap.path.read = flags & PATH_READ;
 	cap.path.write = flags & PATH_WRITE;
+	cap.path.space = space;
 	cap.path.tag = tag;
 	return cap;
 }
@@ -141,6 +142,7 @@ static bool cap_sock_revokable(cap_t p, cap_t c)
 
 // Defined in cap_fs
 bool cap_path_revokable(cap_t p, cap_t c);
+bool cap_path_deletable(cap_t c);
 
 bool cap_is_revokable(cap_t p, cap_t c)
 {
@@ -159,6 +161,16 @@ bool cap_is_revokable(cap_t p, cap_t c)
 		return cap_path_revokable(p, c);
 	default:
 		return false;
+	}
+}
+
+bool cap_is_deletable(cap_t c)
+{
+	switch (c.type) {
+	case CAPTY_PATH:
+		return cap_path_deletable(c);
+	default:
+		return true;
 	}
 }
 

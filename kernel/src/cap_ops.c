@@ -3,6 +3,7 @@
 #include "cap_fs.h"
 #include "cap_ipc.h"
 #include "cap_util.h"
+#include "error.h"
 #include "pmp.h"
 #include "sched.h"
 
@@ -72,6 +73,25 @@ static void delete_hook(cte_t c, cap_t cap)
 		cap_sock_clear(cap, proc_get(cte_pid(c)));
 		break;
 	case CAPTY_PATH:
+		// We need to do a reclamation like routine here as well,
+		// except we do not have direct access to our parent like
+		// in revocation, so we need to find it.
+		uint32_t ptag = path_parent_tag(cap);
+
+		// This depends on the fact that even though
+		// the capability has been deleted from the cte,
+		// the cte still contains next, prev, pointers,
+		// enabling quick iteration to find the parent
+		// capability in the path capability hierarchy
+		// and give back claimed space.
+
+		// Looking in opposite direction of capability revocation to find parent
+		cte_t p = cte_prev(c);
+		while (cte_cap(p).type != CAPTY_PATH || cte_cap(p).path.tag != ptag)
+			p = cte_prev(p);
+		cap_t pcap = cte_cap(p);
+		pcap.path.space += cap.path.space;
+		cte_set_cap(p, pcap);
 		cap_path_clear(cap);
 		break;
 	default:
@@ -81,8 +101,11 @@ static void delete_hook(cte_t c, cap_t cap)
 
 err_t cap_delete(cte_t c)
 {
-	if (!cte_cap(c).type)
+	cap_t cap = cte_cap(c);
+	if (!cap.type)
 		return ERR_EMPTY;
+	if (!cap_is_deletable(cap))
+		return ERR_INVALID_DELETION;
 	delete_hook(c, cte_delete(c));
 	return SUCCESS;
 }
@@ -123,8 +146,9 @@ void cap_reclaim(cte_t p, cap_t pcap, cte_t c, cap_t ccap)
 		cap_sock_clear(ccap, proc_get(cte_pid(c)));
 		return;
 	case CAPTY_PATH:
+		pcap.path.space += ccap.path.space;
 		cap_path_clear(ccap);
-		return;
+		break;
 	default:
 		KASSERT(0);
 	}

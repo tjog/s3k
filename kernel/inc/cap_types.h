@@ -136,7 +136,8 @@ typedef union cap {
 		bool file : 1;
 		bool read : 1;
 		bool write : 1;
-		uint32_t _padding : 25;
+		uint16_t _padding : 9;
+		uint16_t space;
 		uint32_t tag;
 	} path;
 

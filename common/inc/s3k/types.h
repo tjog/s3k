@@ -29,6 +29,7 @@ typedef enum {
 	S3K_ERR_DST_OCCUPIED,
 	S3K_ERR_INVALID_INDEX,
 	S3K_ERR_INVALID_DERIVATION,
+	S3K_ERR_INVALID_DELETION,
 	S3K_ERR_INVALID_MONITOR,
 	S3K_ERR_INVALID_PID,
 	S3K_ERR_INVALID_STATE,
@@ -52,6 +53,7 @@ typedef enum {
 	S3K_ERR_PATH_TOO_LONG,
 	S3K_ERR_PATH_EXISTS,
 	S3K_ERR_PATH_STAT,
+	S3K_ERR_FILE_SIZE,
 } s3k_err_t;
 
 typedef enum {
@@ -182,7 +184,8 @@ typedef union s3k_cap {
 		bool file : 1;
 		bool read : 1;
 		bool write : 1;
-		uint32_t _padding : 25;
+		uint16_t _padding : 9;
+		uint16_t space;
 		uint32_t tag;
 	} path;
 } s3k_cap_t;

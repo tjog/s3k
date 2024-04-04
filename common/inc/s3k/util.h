@@ -67,8 +67,8 @@ static void print_cap(s3k_cap_t cap)
 			   cap.sock.perm, cap.sock.chan, cap.sock.tag);
 		break;
 	case S3K_CAPTY_PATH:
-		alt_printf("ty=PATH, file=%d, read=%d, write=%d, tag=%d", cap.path.file,
-			   cap.path.read, cap.path.write, cap.path.tag);
+		alt_printf("ty=PATH, file=%d, read=%d, write=%d, space=%d, tag=%d", cap.path.file,
+			   cap.path.read, cap.path.write, cap.path.space, cap.path.tag);
 		break;
 	case S3K_CAPTY_NONE:
 		alt_putstr("ty=NONE");
