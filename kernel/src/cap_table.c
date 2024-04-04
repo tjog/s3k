@@ -67,9 +67,9 @@ cap_t cte_cap(cte_t c)
 	return c->cap;
 }
 
-uint64_t cte_pid(cte_t c)
+pid_t cte_pid(cte_t c)
 {
-	return offset(c) / S3K_CAP_CNT;
+	return (pid_t)(offset(c) / S3K_CAP_CNT);
 }
 
 void cte_move(cte_t src, cte_t dst, cap_t *cap)
