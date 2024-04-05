@@ -137,6 +137,10 @@ uint32_t find_next_free_idx()
 
 err_t path_read(cap_t path, char *buf, size_t n)
 {
+	if (!path.type)
+		return ERR_EMPTY;
+	if (path.type != CAPTY_PATH)
+		return ERR_INVALID_PATH;
 	ssize_t ret = strscpy(buf, nodes[path.path.tag].path, n);
 	if (ret < 0)
 		return ERR_PATH_TOO_LONG;
@@ -166,6 +170,8 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, path_flags_t flags)
 	// Can only derive file to file when not using a new path i.e NULL pointer (0)
 	if (scap.path.file && path)
 		return ERR_INVALID_DERIVATION;
+
+	// TODO: check that path does not escape its current directory (i.e. ".." relative path)
 
 	// Can the system handle more path storage?
 	int new_idx = find_next_free_idx();
