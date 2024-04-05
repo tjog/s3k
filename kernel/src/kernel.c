@@ -20,7 +20,6 @@ void kernel_init(void)
 	ctable_init();
 	sched_init();
 	proc_init();
-	fs_init();
 	alt_puts("kernel initialized");
 }
 

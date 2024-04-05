@@ -3,7 +3,6 @@
 #include "cap_table.h"
 #include "cap_util.h"
 #include "error.h"
-#include "ff.h"
 #include "proc.h"
 
 // In addition to the cap_table we need to reliably track parent relationships,
@@ -30,56 +29,6 @@ static tree_node_t nodes[S3K_MAX_PATH_CAPS] = {
 };
 _Static_assert(sizeof(nodes) <= (1 << 14)); /* Not more than 16 KiB */
 
-FATFS FatFs; /* FatFs work area needed for each volume */
-
-char *fresult_get_error(FRESULT fr)
-{
-	switch (fr) {
-	case FR_OK:
-		return "(0) Succeeded";
-	case FR_DISK_ERR:
-		return "(1) A hard error occurred in the low level disk I/O layer";
-	case FR_INT_ERR:
-		return "(2) Assertion failed";
-	case FR_NOT_READY:
-		return "(3) The physical drive cannot work";
-	case FR_NO_FILE:
-		return "(4) Could not find the file";
-	case FR_NO_PATH:
-		return "(5) Could not find the path";
-	case FR_INVALID_NAME:
-		return "(6) The path name format is invalid";
-	case FR_DENIED:
-		return "(7) Access denied due to prohibited access or directory full";
-	case FR_EXIST:
-		return "(8) Access denied due to prohibited access";
-	case FR_INVALID_OBJECT:
-		return "(9) The file/directory object is invalid";
-	case FR_WRITE_PROTECTED:
-		return "(10) The physical drive is write protected";
-	case FR_INVALID_DRIVE:
-		return "(11) The logical drive number is invalid";
-	case FR_NOT_ENABLED:
-		return "(12) The volume has no work area";
-	case FR_NO_FILESYSTEM:
-		return "(13) There is no valid FAT volume";
-	case FR_MKFS_ABORTED:
-		return "(14) The f_mkfs() aborted due to any problem";
-	case FR_TIMEOUT:
-		return "(15) Could not get a grant to access the volume within defined period";
-	case FR_LOCKED:
-		return "(16) The operation is rejected according to the file sharing policy";
-	case FR_NOT_ENOUGH_CORE:
-		return "(17) LFN working buffer could not be allocated";
-	case FR_TOO_MANY_OPEN_FILES:
-		return "(18) Number of open files > FF_FS_LOCK";
-	case FR_INVALID_PARAMETER:
-		return "(19) Given parameter is invalid";
-	default:
-		return "(XX) Unknown";
-	}
-}
-
 /**
  * Debugging facility
 */
@@ -104,19 +53,6 @@ __attribute__((unused)) static void dump_tree(uint32_t tag, int depth)
 	while (child) {
 		dump_tree(child, depth + 1);
 		child = nodes[child].next_sibling;
-	}
-}
-
-void fs_init()
-{
-	FRESULT fr;
-	fr = f_mount(
-	    &FatFs, "",
-	    1 /* OPT = 1 -> mount immediately*/); /* Give a work area to the default drive */
-	if (fr == FR_OK) {
-		alt_puts("File system mounted OK");
-	} else {
-		alt_printf("File system not mounted: %s\n", fresult_get_error(fr));
 	}
 }
 
@@ -226,70 +162,19 @@ bool cap_path_revokable(cap_t p, cap_t c)
 
 err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, uint32_t *bytes_read)
 {
-	if (path.path.type != CAPTY_PATH || !path.path.file || !path.path.read)
-		return ERR_INVALID_INDEX;
-
-	FIL Fil; /* File object needed for each open file */
-	FRESULT fr;
 	err_t err = SUCCESS;
-
-	fr = f_open(&Fil, nodes[path.path.tag].path, FA_READ);
-	if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = ERR_FILE_OPEN;
-		goto ret;
-	}
-	fr = f_lseek(&Fil, offset);
-	if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = ERR_FILE_SEEK;
-		goto cleanup;
-	}
-	fr = f_read(&Fil, buf, buf_size, bytes_read);
-	if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = ERR_FILE_READ;
-		goto cleanup;
-	}
-cleanup:
-	f_close(&Fil);
-ret:
+	// Send message to FS process and when it returns, copy its buffer
+	// to the calling process' buffer. (the FS process will not have
+	// unrestricted memory access. this would avoid a copy, but safety
+	// is higher priority)
 	return err;
 }
 
 err_t read_dir(cap_t path, size_t dir_entry_idx, dir_entry_info_t *out)
 {
-	FILINFO fi;
-	DIR di;
 	err_t err = SUCCESS;
-	FRESULT fr = f_opendir(&di, nodes[path.path.tag].path);
-	if (fr != FR_OK) {
-		err = ERR_FILE_OPEN;
-		goto out;
-	}
-	for (size_t i = 0; i <= dir_entry_idx; i++) {
-		fr = f_readdir(&di, &fi);
-		if (fr != FR_OK) {
-			err = ERR_FILE_SEEK;
-			goto cleanup;
-		}
-		// End of directory
-		if (fi.fname[0] == 0) {
-			err = ERR_INVALID_INDEX;
-			goto cleanup;
-		}
-	}
-	// Could do one larger memcpy here, but not certain FatFS file info and S3K
-	// file info will continue to stay in sync, so leverage the type safety of
-	// explicit structure assignment.
-	out->fattrib = fi.fattrib;
-	out->fdate = fi.fdate;
-	out->fsize = fi.fsize;
-	out->ftime = fi.ftime;
-	memcpy(out->fname, fi.fname, sizeof(fi.fname));
-cleanup:
-	f_closedir(&di);
-out:
+	// Send message to FS process and when it returns, copy its dir_entry_info_t
+	// to "out"
 	return err;
 }
 
@@ -297,24 +182,7 @@ err_t create_dir(cap_t path, bool ensure_create)
 {
 	if (path.path.type != CAPTY_PATH || path.path.file || !path.path.write)
 		return ERR_INVALID_INDEX;
-	FRESULT fr = f_mkdir(nodes[path.path.tag].path);
-	if (fr == FR_EXIST) {
-		if (ensure_create)
-			return ERR_PATH_EXISTS;
-		// Check that the existing entry is a dir
-		FILINFO fno;
-		fr = f_stat(nodes[path.path.tag].path, &fno);
-		if (fr != FR_OK) {
-			return ERR_PATH_STAT;
-		}
-		if (fno.fattrib & AM_DIR)
-			return SUCCESS;
-		// Exists as file, not what we want
-		return ERR_PATH_EXISTS;
-	} else if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_WRITE;
-	}
+	// Send message to FS process and when it returns mirror the return code
 	return SUCCESS;
 }
 
@@ -323,34 +191,11 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 {
 	if (path.path.type != CAPTY_PATH || !path.path.file || !path.path.write)
 		return ERR_INVALID_INDEX;
-
-	FIL Fil; /* File object needed for each open file */
-	FRESULT fr;
-	err_t err = SUCCESS;
-
-	// FA_OPEN_ALWAYS means open the existing file or create it, i.e. succeed in both cases
-	fr = f_open(&Fil, nodes[path.path.tag].path, FA_WRITE | FA_OPEN_ALWAYS);
-	if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = ERR_FILE_OPEN;
-		goto ret;
-	}
-	fr = f_lseek(&Fil, offset);
-	if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = ERR_FILE_SEEK;
-		goto cleanup;
-	}
-	fr = f_write(&Fil, buf, buf_size, bytes_written);
-	if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = ERR_FILE_WRITE;
-		goto cleanup;
-	}
-cleanup:
-	f_close(&Fil);
-ret:
-	return err;
+	// Send message to FS process with the calling process' buffer copied
+	// somewhere FS can read and when it returns, mirror the return code
+	// and number of bytes written. (the FS process will not have unrestricted
+	// memory access. this would avoid a copy, but safety is higher priority)
+	return SUCCESS;
 }
 
 void cap_path_clear(cap_t cap)
@@ -402,14 +247,6 @@ err_t path_delete(cap_t path)
 {
 	if (path.path.type != CAPTY_PATH || !path.path.write)
 		return ERR_INVALID_INDEX;
-
-	FRESULT fr = f_unlink(nodes[path.path.tag].path);
-	if (fr == FR_DENIED) {
-		// Not empty, is current directory, or read-only attribute
-		return ERR_PATH_EXISTS;
-	} else if (fr != FR_OK) {
-		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return ERR_FILE_WRITE;
-	}
+	// Send message to FS process and when it returns mirror the return code
 	return SUCCESS;
 }

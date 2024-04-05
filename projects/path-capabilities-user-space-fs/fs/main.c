@@ -1,4 +1,5 @@
 #include "altc/altio.h"
+#include "altc/string.h"
 #include "ff.h"
 #include "s3k/s3k.h"
 
@@ -24,6 +25,8 @@
 #define UART_PMP_SLOT 1
 #define VIRTIO_PMP 13
 #define VIRTIO_PMP_SLOT 2
+
+static FATFS FatFs; /* FatFs work area needed for each volume */
 
 char *fresult_get_error(FRESULT fr)
 {
@@ -71,6 +74,152 @@ char *fresult_get_error(FRESULT fr)
 	default:
 		return "(XX) Unknown";
 	}
+}
+
+void fs_init()
+{
+	FRESULT fr;
+	fr = f_mount(&FatFs, "", 0); /* Give a work area to the default drive */
+	if (fr == FR_OK) {
+		alt_puts("File system mounted OK");
+	} else {
+		alt_printf("File system not mounted: %s\n", fresult_get_error(fr));
+	}
+}
+
+s3k_err_t read_file(char *path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
+		    uint32_t *bytes_read)
+{
+	FIL Fil; /* File object needed for each open file */
+	FRESULT fr;
+	s3k_err_t err = S3K_SUCCESS;
+
+	fr = f_open(&Fil, path, FA_READ);
+	if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		err = S3K_ERR_FILE_OPEN;
+		goto ret;
+	}
+	fr = f_lseek(&Fil, offset);
+	if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		err = S3K_ERR_FILE_SEEK;
+		goto cleanup;
+	}
+	fr = f_read(&Fil, buf, buf_size, bytes_read);
+	if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		err = S3K_ERR_FILE_READ;
+		goto cleanup;
+	}
+cleanup:
+	f_close(&Fil);
+ret:
+	return err;
+}
+
+s3k_err_t read_dir(char *path, size_t dir_entry_idx, s3k_dir_entry_info_t *out)
+{
+	FILINFO fi;
+	DIR di;
+	s3k_err_t err = S3K_SUCCESS;
+	FRESULT fr = f_opendir(&di, path);
+	if (fr != FR_OK) {
+		err = S3K_ERR_FILE_OPEN;
+		goto out;
+	}
+	for (size_t i = 0; i <= dir_entry_idx; i++) {
+		fr = f_readdir(&di, &fi);
+		if (fr != FR_OK) {
+			err = S3K_ERR_FILE_SEEK;
+			goto cleanup;
+		}
+		// End of directory
+		if (fi.fname[0] == 0) {
+			err = S3K_ERR_INVALID_INDEX;
+			goto cleanup;
+		}
+	}
+	// Could do one larger memcpy here, but not certain FatFS file info and S3K
+	// file info will continue to stay in sync, so leverage the type safety of
+	// explicit structure assignment.
+	out->fattrib = fi.fattrib;
+	out->fdate = fi.fdate;
+	out->fsize = fi.fsize;
+	out->ftime = fi.ftime;
+	memcpy(out->fname, fi.fname, sizeof(fi.fname));
+cleanup:
+	f_closedir(&di);
+out:
+	return err;
+}
+
+s3k_err_t create_dir(char *path, bool ensure_create)
+{
+	FRESULT fr = f_mkdir(path);
+	if (fr == FR_EXIST) {
+		if (ensure_create)
+			return S3K_ERR_PATH_EXISTS;
+		// Check that the existing entry is a dir
+		FILINFO fno;
+		fr = f_stat(path, &fno);
+		if (fr != FR_OK) {
+			return S3K_ERR_PATH_STAT;
+		}
+		if (fno.fattrib & AM_DIR)
+			return S3K_SUCCESS;
+		// Exists as file, not what we want
+		return S3K_ERR_PATH_EXISTS;
+	} else if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		return S3K_ERR_FILE_WRITE;
+	}
+	return S3K_SUCCESS;
+}
+
+s3k_err_t write_file(char *path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
+		     uint32_t *bytes_written)
+{
+	FIL Fil; /* File object needed for each open file */
+	FRESULT fr;
+	s3k_err_t err = S3K_SUCCESS;
+
+	// FA_OPEN_ALWAYS means open the existing file or create it, i.e. succeed in both cases
+	fr = f_open(&Fil, path, FA_WRITE | FA_OPEN_ALWAYS);
+	if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		err = S3K_ERR_FILE_OPEN;
+		goto ret;
+	}
+	fr = f_lseek(&Fil, offset);
+	if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		err = S3K_ERR_FILE_SEEK;
+		goto cleanup;
+	}
+	fr = f_write(&Fil, buf, buf_size, bytes_written);
+	if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		err = S3K_ERR_FILE_READ;
+		goto cleanup;
+	}
+cleanup:
+	f_close(&Fil);
+ret:
+	return err;
+}
+
+s3k_err_t path_delete(char *path)
+{
+	FRESULT fr = f_unlink(path);
+	if (fr == FR_DENIED) {
+		// Not empty, is current directory, or read-only attribute
+		return S3K_ERR_PATH_EXISTS;
+	} else if (fr != FR_OK) {
+		alt_printf("FF error: %s\n", fresult_get_error(fr));
+		return S3K_ERR_FILE_WRITE;
+	}
+	return S3K_SUCCESS;
 }
 
 s3k_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
