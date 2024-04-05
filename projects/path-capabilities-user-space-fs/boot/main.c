@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "altc/altio.h"
 #include "s3k/s3k.h"
 
@@ -103,153 +104,13 @@ void dump_caps(size_t count)
 
 int main(void)
 {
+	FS_PID;
 	s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
 	s3k_err_t err
 	    = setup_pmp_from_mem_cap(UART_MEM, UART_PMP, UART_PMP_SLOT, uart_addr, S3K_MEM_RW);
 	if (err)
 		alt_printf("Uart setup error code: %x\n", err);
 	alt_puts("finished setting up uart");
-
-	err = s3k_path_derive(ROOT_PATH, "newfile.txt", newfile_PATH, FILE | PATH_READ);
-	if (err) {
-		alt_printf("Error from path derive: 0x%X", err);
-		return -1;
-	}
-	err = s3k_path_derive(ROOT_PATH, "newdir", newdir_PATH, PATH_READ | PATH_WRITE);
-	if (err) {
-		alt_printf("Error from path derive: 0x%X", err);
-		return -1;
-	}
-	err = s3k_path_derive(newdir_PATH, "nested.txt", nested_PATH,
-			      FILE | PATH_READ | PATH_WRITE);
-	if (err) {
-		alt_printf("Error from path derive: 0x%X", err);
-		return -1;
-	}
-
-	dump_caps(16);
-
-	uint8_t buf[50];
-	uint32_t bytes_read;
-	err = s3k_read_file(newfile_PATH, 0, buf, sizeof(buf) - 1, &bytes_read);
-	if (err) {
-		alt_printf("Error from s3k_read_file: %d\n", err);
-		return -1;
-	}
-	buf[bytes_read] = 0;
-	alt_printf("Successful read, contents:\n%s\n", buf);
-
-	err = s3k_create_dir(newdir_PATH,
-			     false); // could add "ensure create" flag here
-	if (err) {
-		alt_printf("Error from s3k_create_dir: %d\n", err);
-		return -1;
-	}
-	char b[] = "Hello";
-	uint32_t res = 0;
-	err = s3k_write_file(nested_PATH, 0, b, sizeof(b), &res);
-	if (err) {
-		alt_printf("Error from s3k_write_file: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful write");
-	err = s3k_read_file(nested_PATH, 0, buf, sizeof(buf) - 1, &bytes_read);
-	if (err) {
-		alt_printf("Error from s3k_read_file: %d\n", err);
-		return -1;
-	}
-	buf[bytes_read] = 0;
-	alt_printf("Successful read, contents:\n%s\n", buf);
-	err = s3k_path_delete(nested_PATH);
-	if (err) {
-		alt_printf("Error from s3k_path_delete: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful delete of nested");
-	err = s3k_read_file(nested_PATH, 0, buf, sizeof(buf) - 1, &bytes_read);
-	if (err) {
-		alt_printf("Expected error from s3k_read_file: %d == %d = %d\n", err,
-			   S3K_ERR_FILE_OPEN, err == S3K_ERR_FILE_OPEN);
-	}
-	buf[bytes_read] = 0;
-	err = s3k_path_delete(newdir_PATH);
-	if (err) {
-		alt_printf("Error from s3k_path_delete: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful delete of newdir");
-
-	s3k_dir_entry_info_t dei;
-	for (size_t i = 0; i < 5; i++) {
-		err = s3k_read_dir(ROOT_PATH, i, &dei);
-		if (err) {
-			alt_printf("Error from s3k_read_dir: %d\n", err);
-		} else {
-			alt_printf(
-			    "Entry: fattrib=0x%X, fdate=0x%X, ftime=0x%X, fsize=%d fname=%s\n",
-			    dei.fattrib, dei.fdate, dei.ftime, dei.fsize, dei.fname);
-		}
-	}
-	alt_puts("Successful iteration of root dir");
-
-	// err = s3k_cap_revoke(newdir_PATH);
-	// if (err) {
-	// 	alt_printf("Error from s3k_cap_revoke: %d\n", err);
-	// 	return -1;
-	// }
-	// alt_puts("Successful revocation of newdir");
-	// dump_caps(16);
-	err = s3k_cap_revoke(nested_PATH);
-	if (err) {
-		alt_printf("Error from s3k_cap_revoke: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful revocation of nested file (should do nothing, is a leaf)");
-	dump_caps(16);
-	err = s3k_cap_delete(nested_PATH);
-	if (err) {
-		alt_printf("Error from s3k_cap_delete: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful deletion of nested file");
-	dump_caps(16);
-	err = s3k_path_derive(newdir_PATH, "nested1.txt", nested_PATH + 1,
-			      FILE | PATH_READ | PATH_WRITE);
-	if (err) {
-		alt_printf("Error from s3k_path_derive: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful derivation of nested1.txt");
-
-	err = s3k_path_derive(newdir_PATH, "nested2.txt", nested_PATH + 2,
-			      FILE | PATH_READ | PATH_WRITE);
-	if (err) {
-		alt_printf("Error from s3k_path_derive: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful derivation of nested2.txt");
-
-	err = s3k_path_derive(nested_PATH + 2, NULL, nested_PATH + 3, FILE | PATH_READ);
-	if (err) {
-		alt_printf("Error from s3k_path_derive: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful derivation of nested2.txt readonly");
-
-	err = s3k_cap_delete(newdir_PATH);
-	if (err) {
-		alt_printf("Error from s3k_cap_delete: %d\n", err);
-		return -1;
-	}
-	dump_caps(19);
-
-	err = s3k_cap_revoke(ROOT_PATH);
-	if (err) {
-		alt_printf("Error from s3k_cap_revoke: %d\n", err);
-		return -1;
-	}
-	alt_puts("Successful revocation of root dir");
-	dump_caps(19);
 
 	alt_puts("Successful execution of test program");
 }

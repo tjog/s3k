@@ -44,11 +44,6 @@ typedef enum {
 	SYS_PATH_READ,
 	SYS_MON_PATH_READ,
 	SYS_PATH_DERIVE,
-	SYS_READ_FILE,
-	SYS_WRITE_FILE,
-	SYS_CREATE_DIR,
-	SYS_PATH_DELETE,
-	SYS_READ_DIR,
 } syscall_t;
 
 typedef union {
@@ -134,29 +129,6 @@ typedef union {
 		char *buf;
 		size_t n;
 	} mon_read_path;
-
-	struct {
-		cidx_t idx;
-	} delete_path;
-
-	struct {
-		cidx_t idx;
-		bool ensure_create;
-	} create_dir;
-
-	struct {
-		cidx_t directory;
-		size_t dir_entry_idx;
-		dir_entry_info_t *out;
-	} read_dir;
-
-	struct {
-		cidx_t idx;
-		uint32_t offset;
-		uint8_t *buf;
-		uint32_t buf_size;
-		uint32_t *bytes_result;
-	} file;
 
 } sys_args_t;
 

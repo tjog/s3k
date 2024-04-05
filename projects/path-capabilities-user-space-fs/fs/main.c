@@ -28,6 +28,17 @@
 
 static FATFS FatFs; /* FatFs work area needed for each volume */
 
+typedef enum {
+	FS_SUCCESS,
+	FS_ERR_FILE_OPEN,
+	FS_ERR_FILE_SEEK,
+	FS_ERR_FILE_READ,
+	FS_ERR_FILE_WRITE,
+	FS_ERR_PATH_EXISTS,
+	FS_ERR_PATH_STAT,
+	FS_ERR_INVALID_INDEX,
+} fs_err_t;
+
 char *fresult_get_error(FRESULT fr)
 {
 	switch (fr) {
@@ -87,29 +98,29 @@ void fs_init()
 	}
 }
 
-s3k_err_t read_file(char *path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-		    uint32_t *bytes_read)
+fs_err_t read_file(char *path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
+		   uint32_t *bytes_read)
 {
 	FIL Fil; /* File object needed for each open file */
 	FRESULT fr;
-	s3k_err_t err = S3K_SUCCESS;
+	fs_err_t err = FS_SUCCESS;
 
 	fr = f_open(&Fil, path, FA_READ);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = S3K_ERR_FILE_OPEN;
+		err = FS_ERR_FILE_OPEN;
 		goto ret;
 	}
 	fr = f_lseek(&Fil, offset);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = S3K_ERR_FILE_SEEK;
+		err = FS_ERR_FILE_SEEK;
 		goto cleanup;
 	}
 	fr = f_read(&Fil, buf, buf_size, bytes_read);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = S3K_ERR_FILE_READ;
+		err = FS_ERR_FILE_READ;
 		goto cleanup;
 	}
 cleanup:
@@ -118,25 +129,25 @@ ret:
 	return err;
 }
 
-s3k_err_t read_dir(char *path, size_t dir_entry_idx, s3k_dir_entry_info_t *out)
+fs_err_t read_dir(char *path, size_t dir_entry_idx, s3k_dir_entry_info_t *out)
 {
 	FILINFO fi;
 	DIR di;
-	s3k_err_t err = S3K_SUCCESS;
+	fs_err_t err = FS_SUCCESS;
 	FRESULT fr = f_opendir(&di, path);
 	if (fr != FR_OK) {
-		err = S3K_ERR_FILE_OPEN;
+		err = FS_ERR_FILE_OPEN;
 		goto out;
 	}
 	for (size_t i = 0; i <= dir_entry_idx; i++) {
 		fr = f_readdir(&di, &fi);
 		if (fr != FR_OK) {
-			err = S3K_ERR_FILE_SEEK;
+			err = FS_ERR_FILE_SEEK;
 			goto cleanup;
 		}
 		// End of directory
 		if (fi.fname[0] == 0) {
-			err = S3K_ERR_INVALID_INDEX;
+			err = FS_ERR_INVALID_INDEX;
 			goto cleanup;
 		}
 	}
@@ -154,53 +165,53 @@ out:
 	return err;
 }
 
-s3k_err_t create_dir(char *path, bool ensure_create)
+fs_err_t create_dir(char *path, bool ensure_create)
 {
 	FRESULT fr = f_mkdir(path);
 	if (fr == FR_EXIST) {
 		if (ensure_create)
-			return S3K_ERR_PATH_EXISTS;
+			return FS_ERR_PATH_EXISTS;
 		// Check that the existing entry is a dir
 		FILINFO fno;
 		fr = f_stat(path, &fno);
 		if (fr != FR_OK) {
-			return S3K_ERR_PATH_STAT;
+			return FS_ERR_PATH_STAT;
 		}
 		if (fno.fattrib & AM_DIR)
-			return S3K_SUCCESS;
+			return FS_SUCCESS;
 		// Exists as file, not what we want
-		return S3K_ERR_PATH_EXISTS;
+		return FS_ERR_PATH_EXISTS;
 	} else if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return S3K_ERR_FILE_WRITE;
+		return FS_ERR_FILE_WRITE;
 	}
-	return S3K_SUCCESS;
+	return FS_SUCCESS;
 }
 
-s3k_err_t write_file(char *path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-		     uint32_t *bytes_written)
+fs_err_t write_file(char *path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
+		    uint32_t *bytes_written)
 {
 	FIL Fil; /* File object needed for each open file */
 	FRESULT fr;
-	s3k_err_t err = S3K_SUCCESS;
+	fs_err_t err = FS_SUCCESS;
 
 	// FA_OPEN_ALWAYS means open the existing file or create it, i.e. succeed in both cases
 	fr = f_open(&Fil, path, FA_WRITE | FA_OPEN_ALWAYS);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = S3K_ERR_FILE_OPEN;
+		err = FS_ERR_FILE_OPEN;
 		goto ret;
 	}
 	fr = f_lseek(&Fil, offset);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = S3K_ERR_FILE_SEEK;
+		err = FS_ERR_FILE_SEEK;
 		goto cleanup;
 	}
 	fr = f_write(&Fil, buf, buf_size, bytes_written);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = S3K_ERR_FILE_READ;
+		err = FS_ERR_FILE_READ;
 		goto cleanup;
 	}
 cleanup:
@@ -209,23 +220,23 @@ ret:
 	return err;
 }
 
-s3k_err_t path_delete(char *path)
+fs_err_t path_delete(char *path)
 {
 	FRESULT fr = f_unlink(path);
 	if (fr == FR_DENIED) {
 		// Not empty, is current directory, or read-only attribute
-		return S3K_ERR_PATH_EXISTS;
+		return FS_ERR_PATH_EXISTS;
 	} else if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		return S3K_ERR_FILE_WRITE;
+		return FS_ERR_FILE_WRITE;
 	}
-	return S3K_SUCCESS;
+	return FS_SUCCESS;
 }
 
-s3k_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
-				 s3k_pmp_slot_t pmp_slot, s3k_napot_t napot_addr, s3k_rwx_t rwx)
+fs_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
+				s3k_pmp_slot_t pmp_slot, s3k_napot_t napot_addr, s3k_rwx_t rwx)
 {
-	s3k_err_t err = S3K_SUCCESS;
+	fs_err_t err = FS_SUCCESS;
 	err = s3k_cap_derive(mem_cap_idx, pmp_cap_idx, s3k_mk_pmp(napot_addr, rwx));
 	if (err)
 		return err;
@@ -238,69 +249,13 @@ s3k_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
 
 int main(void)
 {
-	s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
-	s3k_napot_t virtio_addr = s3k_napot_encode(VIRTIO0_BASE_ADDR, 0x1000);
-
-	s3k_err_t err
-	    = setup_pmp_from_mem_cap(UART_MEM, UART_PMP, UART_PMP_SLOT, uart_addr, S3K_MEM_RW);
-	if (err)
-		alt_printf("Uart setup error code: %x\n", err);
-	alt_puts("finished setting up uart");
-
-	err = setup_pmp_from_mem_cap(VIRTIO_MEM, VIRTIO_PMP, VIRTIO_PMP_SLOT, virtio_addr,
-				     S3K_MEM_RW);
-	if (err)
-		alt_printf("Virtio setup error code: %x\n", err);
-	alt_puts("finished setting up virtio");
-
-	FATFS FatFs; /* FatFs work area needed for each volume */
-	FRESULT fr;
-	fr = f_mount(&FatFs, "", 0); /* Give a work area to the default drive */
-	if (fr == FR_OK) {
-		alt_puts("File system mounted OK");
-	} else {
-		alt_putstr("File system not mounted: ");
-		alt_putstr(fresult_get_error(fr));
-		alt_putchar('\n');
-	}
-
-	UINT bw;
-	FIL Fil; /* File object needed for each open file */
-	fr = f_open(&Fil, "newfile.txt", FA_WRITE | FA_CREATE_ALWAYS); /* Create a file */
-	if (fr == FR_OK) {
-		alt_puts("File opened for writing");
-		f_write(&Fil, "It works!\r\n", 11, &bw); /* Write data to the file */
-		fr = f_close(&Fil);			 /* Close the file */
-		if (fr == FR_OK && bw == 11) {
-			alt_puts("File saved");
-		} else {
-			alt_putstr("File not saved: ");
-			alt_putstr(fresult_get_error(fr));
-			alt_putchar('\n');
-		}
-	} else {
-		alt_putstr("File not opened: ");
-		alt_putstr(fresult_get_error(fr));
-		alt_putchar('\n');
-	}
-
-	char buffer[1024];
-	fr = f_open(&Fil, "test.txt", FA_READ);
-	if (fr == FR_OK) {
-		alt_puts("File opened for reading");
-		f_read(&Fil, buffer, 1023, &bw); /*Read data from the file */
-		fr = f_close(&Fil);		 /* Close the file */
-		if (fr == FR_OK) {
-			buffer[bw] = '\0';
-			alt_puts(buffer);
-		} else {
-			alt_putstr("File not read: ");
-			alt_putstr(fresult_get_error(fr));
-			alt_putchar('\n');
-		}
-	} else {
-		alt_putstr("File not opened: ");
-		alt_putstr(fresult_get_error(fr));
-		alt_putchar('\n');
-	}
+	/*
+	Setup a loop receiving messages on our server socket.
+	Respond with data.
+	Protocol:
+		- Client sendrecv()'s a message "INIT", along with a PMP capability
+		  where the clients requests will return larger structures and buffer
+		  data for reading and writing.
+		- Client sends commands mapping to one of the operations above.
+	*/
 }

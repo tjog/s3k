@@ -36,15 +36,10 @@ typedef enum {
 	S3K_SYS_SOCK_RECV,
 	S3K_SYS_SOCK_SENDRECV,
 
-	// Path+file calls
+	// Path calls
 	S3K_SYS_PATH_READ,
 	S3K_SYS_MON_PATH_READ,
 	S3K_SYS_PATH_DERIVE,
-	S3K_SYS_READ_FILE,
-	S3K_SYS_WRITE_FILE,
-	S3K_SYS_CREATE_DIR,
-	S3K_SYS_PATH_DELETE,
-	S3K_SYS_READ_DIR,
 } s3k_syscall_t;
 
 uint64_t s3k_get_pid(void);
@@ -115,33 +110,3 @@ s3k_err_t s3k_mon_path_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx, c
 */
 s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest,
 			  s3k_path_flags_t flags);
-/**
- * Read a file at the specified offset, EOF is detected by checking bytes_read < buf_size.
- * No persistent file descriptors exist.
-*/
-s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			volatile uint32_t *bytes_read);
-/**
- * Write to a file at the specified offset, partial writes are detected by checking bytes_read < buf_size.
- * No persistent file descriptors exist.
-*/
-s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			 volatile uint32_t *bytes_written);
-/**
- * Creates a path physically on disk, errors if a parent path does not exist.
- * Ensure create will error instead of silently succeed when the directory
- * already exists. It will not silently succeed if the existing directory entry
- * is a file rather than a directory.
-*/
-s3k_err_t s3k_create_dir(s3k_cidx_t idx, bool ensure_create);
-/**
- * Deletes a path if on disk, returns an error if not found or delete operation is unsuccessful.
- * If directory, it must be empty before deletion can succeed.
- * Note this does not delete or revoke the referenced capability.
-*/
-s3k_err_t s3k_path_delete(s3k_cidx_t idx);
-/**
- * Retrieve the directory entry information at some index and store in the
- * provided info structure.
-*/
-s3k_err_t s3k_read_dir(s3k_cidx_t directory, size_t dir_entry_idx, volatile s3k_dir_entry_info_t *out);

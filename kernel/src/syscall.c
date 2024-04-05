@@ -53,11 +53,6 @@ static err_t sys_sock_sendrecv(proc_t *p, const sys_args_t *args, uint64_t *ret)
 static err_t sys_path_read(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_mon_path_read(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_write_file(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_create_dir(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_path_delete(proc_t *p, const sys_args_t *args, uint64_t *ret);
-static err_t sys_read_dir(proc_t *p, const sys_args_t *args, uint64_t *ret);
 
 typedef err_t (*sys_handler_t)(proc_t *, const sys_args_t *, uint64_t *);
 
@@ -68,8 +63,7 @@ sys_handler_t handlers[]
        sys_pmp_unload,	   sys_mon_suspend,   sys_mon_resume,	sys_mon_state_get, sys_mon_yield,
        sys_mon_reg_read,   sys_mon_reg_write, sys_mon_cap_read, sys_mon_cap_move,  sys_mon_pmp_load,
        sys_mon_pmp_unload, sys_sock_send,     sys_sock_recv,	sys_sock_sendrecv, sys_path_read,
-       sys_mon_path_read,  sys_path_derive,   sys_read_file,	sys_write_file,	   sys_create_dir,
-       sys_path_delete,	   sys_read_dir};
+       sys_mon_path_read, sys_path_derive};
 
 void handle_syscall(proc_t *p)
 {
@@ -318,17 +312,6 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args, const proc_t *p)
 			return ERR_INVALID_INDEX;
 		return SUCCESS;
 
-	case SYS_READ_FILE:
-	case SYS_WRITE_FILE:
-		if (!valid_idx(args->file.idx))
-			return ERR_INVALID_INDEX;
-		if (!valid_addr_range(p, args->file.buf, args->file.buf_size, MEM_RW))
-			return ERR_INVALID_MEM_ADDRESS;
-		if (!valid_addr_range(p, args->file.bytes_result, sizeof(*args->file.bytes_result),
-				      MEM_RW))
-			return ERR_INVALID_MEM_ADDRESS;
-		return SUCCESS;
-
 	case SYS_PATH_READ:
 		if (!valid_idx(args->read_path.idx))
 			return ERR_INVALID_INDEX;
@@ -345,10 +328,6 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args, const proc_t *p)
 		if (!valid_addr_range(p, args->mon_read_path.buf, args->mon_read_path.n, MEM_RW))
 			return ERR_INVALID_MEM_ADDRESS;
 		return SUCCESS;
-	case SYS_PATH_DELETE:
-		if (!valid_idx(args->delete_path.idx))
-			return ERR_INVALID_INDEX;
-		return SUCCESS;
 	case SYS_PATH_DERIVE:
 		if (!valid_idx(args->path.idx))
 			return ERR_INVALID_INDEX;
@@ -362,16 +341,6 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args, const proc_t *p)
 					      s_len + 1 /* Include terminator */, MEM_R))
 				return ERR_INVALID_MEM_ADDRESS;
 		}
-		return SUCCESS;
-	case SYS_CREATE_DIR:
-		if (!valid_idx(args->create_dir.idx))
-			return ERR_INVALID_INDEX;
-		return SUCCESS;
-	case SYS_READ_DIR:
-		if (!valid_idx(args->read_dir.directory))
-			return ERR_INVALID_INDEX;
-		if (!valid_addr_range(p, args->read_dir.out, sizeof(*args->read_dir.out), MEM_RW))
-			return ERR_INVALID_MEM_ADDRESS;
 		return SUCCESS;
 	default:
 		return ERR_INVALID_SYSCALL;
@@ -607,36 +576,4 @@ err_t sys_path_derive(proc_t *p, const sys_args_t *args, uint64_t *ret)
 	cte_t src = ctable_get(p->pid, args->path.idx);
 	cte_t dst = ctable_get(p->pid, args->path.dst_idx);
 	return path_derive(src, dst, args->path.path, args->path.flags);
-}
-
-err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret)
-{
-	cte_t file = ctable_get(p->pid, args->file.idx);
-	return read_file(cte_cap(file), args->file.offset, args->file.buf, args->file.buf_size,
-			 args->file.bytes_result);
-}
-
-err_t sys_write_file(proc_t *p, const sys_args_t *args, uint64_t *ret)
-{
-	cte_t file = ctable_get(p->pid, args->file.idx);
-	return write_file(cte_cap(file), args->file.offset, args->file.buf, args->file.buf_size,
-			  args->file.bytes_result);
-}
-
-err_t sys_create_dir(proc_t *p, const sys_args_t *args, uint64_t *ret)
-{
-	cte_t path = ctable_get(p->pid, args->create_dir.idx);
-	return create_dir(cte_cap(path), args->create_dir.ensure_create);
-}
-
-err_t sys_read_dir(proc_t *p, const sys_args_t *args, uint64_t *ret)
-{
-	cte_t path = ctable_get(p->pid, args->read_dir.directory);
-	return read_dir(cte_cap(path), args->read_dir.dir_entry_idx, args->read_dir.out);
-}
-
-err_t sys_path_delete(proc_t *p, const sys_args_t *args, uint64_t *ret)
-{
-	cte_t path = ctable_get(p->pid, args->delete_path.idx);
-	return path_delete(cte_cap(path));
 }

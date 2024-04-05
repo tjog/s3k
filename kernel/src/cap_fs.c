@@ -160,44 +160,6 @@ bool cap_path_revokable(cap_t p, cap_t c)
 	return (c.type == CAPTY_PATH) && nodes[c.path.tag].parent == p.path.tag;
 }
 
-err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, uint32_t *bytes_read)
-{
-	err_t err = SUCCESS;
-	// Send message to FS process and when it returns, copy its buffer
-	// to the calling process' buffer. (the FS process will not have
-	// unrestricted memory access. this would avoid a copy, but safety
-	// is higher priority)
-	return err;
-}
-
-err_t read_dir(cap_t path, size_t dir_entry_idx, dir_entry_info_t *out)
-{
-	err_t err = SUCCESS;
-	// Send message to FS process and when it returns, copy its dir_entry_info_t
-	// to "out"
-	return err;
-}
-
-err_t create_dir(cap_t path, bool ensure_create)
-{
-	if (path.path.type != CAPTY_PATH || path.path.file || !path.path.write)
-		return ERR_INVALID_INDEX;
-	// Send message to FS process and when it returns mirror the return code
-	return SUCCESS;
-}
-
-err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-		 uint32_t *bytes_written)
-{
-	if (path.path.type != CAPTY_PATH || !path.path.file || !path.path.write)
-		return ERR_INVALID_INDEX;
-	// Send message to FS process with the calling process' buffer copied
-	// somewhere FS can read and when it returns, mirror the return code
-	// and number of bytes written. (the FS process will not have unrestricted
-	// memory access. this would avoid a copy, but safety is higher priority)
-	return SUCCESS;
-}
-
 void cap_path_clear(cap_t cap)
 {
 	// Set to not occupied, remove all referencese in tree.
@@ -241,12 +203,4 @@ void cap_path_clear(cap_t cap)
 
 	// Clear the memory (i.e. occupied = false etc)
 	memset(del_node, 0, sizeof(tree_node_t));
-}
-
-err_t path_delete(cap_t path)
-{
-	if (path.path.type != CAPTY_PATH || !path.path.write)
-		return ERR_INVALID_INDEX;
-	// Send message to FS process and when it returns mirror the return code
-	return SUCCESS;
 }

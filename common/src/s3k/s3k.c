@@ -83,30 +83,6 @@ typedef union {
 		char *buf;
 		size_t n;
 	} mon_read_path;
-
-	struct {
-		s3k_cidx_t idx;
-	} delete_path;
-
-	struct {
-		s3k_cidx_t idx;
-		bool ensure_create;
-	} create_dir;
-
-	struct {
-		s3k_cidx_t directory;
-		size_t dir_entry_idx;
-		volatile s3k_dir_entry_info_t *out;
-	} read_dir;
-
-	struct {
-		s3k_cidx_t idx;
-		uint32_t offset;
-		uint8_t *buf;
-		uint32_t buf_size;
-		volatile uint32_t *bytes_result;
-	} file;
-
 } sys_args_t;
 
 typedef struct {
@@ -857,67 +833,4 @@ s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, s3k
 		     }
 	     };
 	return do_ecall(S3K_SYS_PATH_DERIVE, args).err;
-}
-
-s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			volatile uint32_t *bytes_read)
-{
-	sys_args_t args = {
-	    .file = {
-		     .idx = file,
-		     .offset = offset,
-		     .buf = buf,
-		     .buf_size = buf_size,
-		     .bytes_result = bytes_read,
-		     }
-	     };
-	return do_ecall(S3K_SYS_READ_FILE, args).err;
-}
-
-s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			 volatile uint32_t *bytes_written)
-{
-	sys_args_t args = {
-	    .file = {
-		     .idx = file,
-		     .offset = offset,
-		     .buf = buf,
-		     .buf_size = buf_size,
-		     .bytes_result = bytes_written,
-		     }
-	     };
-	return do_ecall(S3K_SYS_WRITE_FILE, args).err;
-}
-
-s3k_err_t s3k_create_dir(s3k_cidx_t path, bool ensure_create)
-{
-	sys_args_t args = {
-	    .create_dir = {
-			   .idx = path,
-			   .ensure_create = ensure_create,
-			   }
-	     };
-	return do_ecall(S3K_SYS_CREATE_DIR, args).err;
-}
-
-s3k_err_t s3k_path_delete(s3k_cidx_t path)
-{
-	sys_args_t args = {
-	    .delete_path = {
-			    .idx = path,
-			    }
-	     };
-	return do_ecall(S3K_SYS_PATH_DELETE, args).err;
-}
-
-s3k_err_t s3k_read_dir(s3k_cidx_t directory, size_t dir_entry_idx, volatile s3k_dir_entry_info_t *out)
-{
-	sys_args_t args = {
-	    .read_dir = {
-			 .directory = directory,
-			 .dir_entry_idx = dir_entry_idx,
-			 .out = out,
-			 }
-	     };
-	return do_ecall(S3K_SYS_READ_DIR, args).err;
 }
