@@ -13,6 +13,8 @@ void *memcpy(void *dest, const void *src, size_t n)
 
 int main(void)
 {
+	alt_puts("starting app1");
+
 	s3k_msg_t msg;
 	s3k_reply_t reply;
 	memcpy(msg.data, "ping", 5);
