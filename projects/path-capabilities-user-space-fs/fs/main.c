@@ -1,43 +1,13 @@
+#include "../config.h"
 #include "altc/altio.h"
 #include "altc/string.h"
 #include "ff.h"
+#include "s3k/fs.h"
 #include "s3k/s3k.h"
 
-#define APP0_PID 0
-#define APP1_PID 1
-
-// See plat_conf.h
-#define BOOT_PMP 0
-#define RAM_MEM 1
-#define UART_MEM 2
-#define TIME_MEM 3
-#define HART0_TIME 4
-#define HART1_TIME 5
-#define HART2_TIME 6
-#define HART3_TIME 7
-#define MONITOR 8
-#define CHANNEL 9
-#define VIRTIO_MEM 10
-#define ROOT_PATH 11
-
-// Derived
-#define UART_PMP 12
-#define UART_PMP_SLOT 1
-#define VIRTIO_PMP 13
-#define VIRTIO_PMP_SLOT 2
+#define PROCESS_NAME "fs"
 
 static FATFS FatFs; /* FatFs work area needed for each volume */
-
-typedef enum {
-	FS_SUCCESS,
-	FS_ERR_FILE_OPEN,
-	FS_ERR_FILE_SEEK,
-	FS_ERR_FILE_READ,
-	FS_ERR_FILE_WRITE,
-	FS_ERR_PATH_EXISTS,
-	FS_ERR_PATH_STAT,
-	FS_ERR_INVALID_INDEX,
-} fs_err_t;
 
 char *fresult_get_error(FRESULT fr)
 {
@@ -247,8 +217,102 @@ fs_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
 	return err;
 }
 
+void print_cap(s3k_cap_t cap)
+{
+	switch (cap.type) {
+	case S3K_CAPTY_TIME:
+		alt_printf("ty=TIME, hart=%d, bgn=%d, mrk=%d, end=%d", cap.time.hart, cap.time.bgn,
+			   cap.time.mrk, cap.time.end);
+		break;
+	case S3K_CAPTY_MEMORY:
+		alt_printf("ty=MEMORY, rwx=%d, lck=%d, bgn=%d, mrk=%d, end=%d", cap.mem.rwx,
+			   cap.mem.lck, cap.mem.bgn, cap.mem.mrk, cap.mem.end);
+		break;
+	case S3K_CAPTY_PMP:
+		alt_printf("ty=PMP, rwx=%d, used=%d, slot=%d, addr=0x%X", cap.pmp.rwx, cap.pmp.used,
+			   cap.pmp.slot, cap.pmp.addr);
+		break;
+	case S3K_CAPTY_MONITOR:
+		alt_printf("ty=MONTOR, bgn=%d, mrk=%d, end=%d", cap.mon.bgn, cap.mon.mrk,
+			   cap.mon.end);
+		break;
+	case S3K_CAPTY_CHANNEL:
+		alt_printf("ty=CHANNEL, bgn=%d, mrk=%d, end=%d", cap.chan.bgn, cap.chan.mrk,
+			   cap.chan.end);
+		break;
+	case S3K_CAPTY_SOCKET:
+		alt_printf("ty=SOCKET, mode=0x%X, perm=0x%X, chan=%d, tag=%d", cap.sock.mode,
+			   cap.sock.perm, cap.sock.chan, cap.sock.tag);
+		break;
+	case S3K_CAPTY_PATH:
+		alt_printf("ty=PATH, file=%d, read=%d, write=%d, tag=%d", cap.path.file,
+			   cap.path.read, cap.path.write, cap.path.tag);
+		break;
+	case S3K_CAPTY_NONE:
+		alt_putstr("ty=NONE");
+		break;
+	}
+}
+
+void dump_caps_range(s3k_cidx_t start, s3k_cidx_t end)
+{
+	for (size_t i = start; i <= end; i++) {
+		alt_printf(PROCESS_NAME ": %d: ", i);
+		s3k_cap_t cap;
+		s3k_err_t err = s3k_cap_read(i, &cap);
+		if (!err) {
+			print_cap(cap);
+			if (cap.type == S3K_CAPTY_PATH) {
+				char buf[50];
+				s3k_err_t err = s3k_path_read(i, buf, 50);
+				if (!err) {
+					alt_putstr(" (='");
+					alt_putstr(buf);
+					alt_putstr("')");
+				} else
+					alt_printf(" (Error from s3k_path_read: 0x%X)", err);
+			}
+		} else {
+			alt_putstr("NONE");
+			alt_printf(" (Error from s3k_cap_read: 0x%X)", err);
+		}
+		alt_putchar('\n');
+	}
+}
+
+s3k_cidx_t find_free_cidx()
+{
+	for (s3k_cidx_t i = 0; i < S3K_CAP_CNT; i++) {
+		s3k_cap_t c;
+		s3k_err_t err = s3k_cap_read(i, &c);
+		if (err == S3K_ERR_EMPTY)
+			return i;
+	}
+	return S3K_CAP_CNT;
+}
+
+s3k_cidx_t find_server_cidx()
+{
+	for (s3k_cidx_t i = 0; i < S3K_CAP_CNT; i++) {
+		s3k_cap_t c;
+		s3k_err_t err = s3k_cap_read(i, &c);
+		if (err)
+			continue;
+		if (c.type == S3K_CAPTY_SOCKET && c.sock.chan == FS_CHANNEL) {
+			return i;
+		}
+	}
+	return S3K_CAP_CNT;
+}
+
 int main(void)
 {
+	s3k_sync_mem();
+
+	fs_init();
+	alt_puts("File server initialized");
+	alt_puts("Hello from file server");
+	// dump_caps_range(0, S3K_CAP_CNT - 1);
 	/*
 	Setup a loop receiving messages on our server socket.
 	Respond with data.
@@ -258,4 +322,66 @@ int main(void)
 		  data for reading and writing.
 		- Client sends commands mapping to one of the operations above.
 	*/
+
+	// Find what cidx our server socket is
+	s3k_cidx_t server_cidx = find_server_cidx();
+	if (server_cidx == S3K_CAP_CNT) {
+		alt_printf(PROCESS_NAME ": error: could not find file server's socket\n");
+		return -1;
+	}
+	// Find a free cidx to receive clients capabilities
+	s3k_cidx_t free_cidx = find_free_cidx();
+	if (free_cidx == S3K_CAP_CNT) {
+		alt_printf(PROCESS_NAME
+			   ": error: could not find a free cidx for file server to receive on\n");
+		return -1;
+	}
+
+	s3k_reg_write(S3K_REG_SERVTIME, 15000);
+
+	while (true) {
+		s3k_reply_t recv_msg = s3k_sock_recv(server_cidx, free_cidx);
+		if (recv_msg.err) {
+			alt_printf(PROCESS_NAME ": error: s3k_sock_recv returned error %x\n",
+				   recv_msg.err);
+			continue;
+		}
+		alt_printf(PROCESS_NAME ": received from tag=%d, data=[%d, %d, %d, %d]",
+			   recv_msg.tag, recv_msg.data[0], recv_msg.data[1], recv_msg.data[2],
+			   recv_msg.data[3]);
+		if (recv_msg.cap.type != S3K_CAPTY_NONE) {
+			alt_putstr(" cap = (");
+			print_cap(recv_msg.cap);
+			alt_putchar(')');
+		}
+		alt_putchar('\n');
+
+		switch ((fs_client_ops)recv_msg.data[0]) {
+		case fs_client_init: {
+			s3k_msg_t response = {0};
+			response.send_cap = false;
+			response.data[0] = FS_ERR_INVALID_CAPABILITY;
+			alt_printf(PROCESS_NAME ": sending, data=[%d, %d, %d, %d]\n",
+				   response.data[0], response.data[1], response.data[2],
+				   response.data[3]);
+			s3k_err_t err = s3k_sock_send(server_cidx, &response);
+			if (err) {
+				alt_printf(
+				    PROCESS_NAME ": error: s3k_sock_send returned error %d\n", err);
+			} else {
+				alt_printf(PROCESS_NAME ": s3k_sock_send succeeded\n");
+			}
+		} break;
+
+		default: {
+			s3k_msg_t response = {0};
+			response.data[0] = FS_ERR_INVALID_OPERATION_CODE;
+			s3k_err_t err = s3k_sock_send(server_cidx, &response);
+			if (err) {
+				alt_printf(
+				    PROCESS_NAME ": error: s3k_sock_send returned error %d\n", err);
+			}
+		} break;
+		}
+	}
 }

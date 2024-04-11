@@ -2,9 +2,6 @@
 #include "altc/altio.h"
 #include "s3k/s3k.h"
 
-#define APP0_PID 0
-#define APP1_PID 1
-
 // See plat_conf.h
 #define BOOT_PMP 0
 #define RAM_MEM 1
@@ -77,17 +74,21 @@ void print_cap(s3k_cap_t cap)
 	}
 }
 
-void dump_caps(size_t count)
+void mon_dump_caps_range(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t start, s3k_cidx_t end)
 {
-	for (size_t i = 0; i < count; i++) {
-		alt_printf("Capability %d: ", i);
+	alt_printf("Dumping caps for PID %d for idx [%d,%d]:\n", pid, start, end);
+	for (size_t i = start; i <= end; i++) {
+		alt_printf("%d: ", i);
 		s3k_cap_t cap;
-		s3k_err_t err = s3k_cap_read(i, &cap);
+		s3k_err_t err = (pid == BOOT_PID) ? s3k_cap_read(i, &cap) :
+						    s3k_mon_cap_read(mon_idx, pid, i, &cap);
 		if (!err) {
 			print_cap(cap);
 			if (cap.type == S3K_CAPTY_PATH) {
 				char buf[50];
-				s3k_err_t err = s3k_path_read(i, buf, 50);
+				s3k_err_t err = (pid == BOOT_PID) ?
+						    s3k_path_read(i, buf, 50) :
+						    s3k_mon_path_read(mon_idx, pid, i, buf, 50);
 				if (!err) {
 					alt_putstr(" (='");
 					alt_putstr(buf);
@@ -96,21 +97,211 @@ void dump_caps(size_t count)
 			}
 		} else {
 			alt_putstr("NONE");
-			alt_printf(" (Error from s3k_cap_read: 0x%X)", err);
+			alt_printf(" (Error from s3k_mon_cap_read: 0x%X)", err);
 		}
 		alt_putchar('\n');
 	}
 }
 
+#define SUCCESS_OR_RETURN_ERR(x)    \
+	do {                        \
+		err = x;            \
+		if (err)            \
+			return err; \
+	} while (false);
+
+s3k_err_t setup_fs()
+{
+	s3k_cidx_t boot_tmp = S3K_CAP_CNT - 1;
+	s3k_cidx_t next_fs_cidx = 0;
+	s3k_pmp_slot_t next_fs_pmp = 0;
+	s3k_err_t err = S3K_SUCCESS;
+
+	// MEMORY+PMP
+	{
+		s3k_napot_t fs_mem_addr = s3k_napot_encode((uint64_t)FS_MEM, FS_MEM_LEN);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(RAM_MEM, boot_tmp, s3k_mk_pmp(fs_mem_addr, S3K_MEM_RWX)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		SUCCESS_OR_RETURN_ERR(s3k_mon_pmp_load(MONITOR, FS_PID, next_fs_cidx, next_fs_pmp));
+		next_fs_cidx++;
+		next_fs_pmp++;
+	}
+
+	// Derive a PMP capability for uart (to allow debug output)
+	{
+		s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(UART_MEM, boot_tmp, s3k_mk_pmp(uart_addr, S3K_MEM_RW)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		SUCCESS_OR_RETURN_ERR(s3k_mon_pmp_load(MONITOR, FS_PID, next_fs_cidx, next_fs_pmp));
+		next_fs_cidx++;
+		next_fs_pmp++;
+	}
+
+	// VIRTIO
+	{
+		s3k_napot_t virtio_addr = s3k_napot_encode(VIRTIO0_BASE_ADDR, 0x1000);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(VIRTIO, boot_tmp, s3k_mk_pmp(virtio_addr, S3K_MEM_RW)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		SUCCESS_OR_RETURN_ERR(s3k_mon_pmp_load(MONITOR, FS_PID, next_fs_cidx, next_fs_pmp));
+		next_fs_cidx++;
+		next_fs_pmp++;
+	}
+
+	// SERVER SOCKET
+	{
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    CHANNEL, boot_tmp,
+		    s3k_mk_socket(FS_CHANNEL, S3K_IPC_NOYIELD,
+				  S3K_IPC_CCAP | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_SDATA, 0)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		next_fs_cidx++;
+	}
+
+	// TIME
+	{
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, HART1_TIME, FS_PID, next_fs_cidx));
+		next_fs_cidx++;
+	}
+
+	// Write start PC of FS to PC
+	SUCCESS_OR_RETURN_ERR(s3k_mon_reg_write(MONITOR, FS_PID, S3K_REG_PC, (uint64_t)FS_MEM));
+
+	return err;
+}
+
+s3k_err_t setup_app(s3k_pid_t fs_pid, uint32_t fs_client_tag)
+{
+	s3k_cidx_t boot_tmp = S3K_CAP_CNT - 1;
+	s3k_cidx_t next_app_cidx = 0;
+	s3k_pmp_slot_t next_app_pmp = 0;
+	s3k_err_t err = S3K_SUCCESS;
+
+	// MEMORY+PMP
+	{
+		s3k_napot_t app_mem_addr = s3k_napot_encode((uint64_t)APP_MEM, APP_MEM_LEN);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(RAM_MEM, boot_tmp, s3k_mk_pmp(app_mem_addr, S3K_MEM_RWX)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, APP_PID, next_app_cidx));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_pmp_load(MONITOR, APP_PID, next_app_cidx, next_app_pmp));
+		next_app_cidx++;
+		next_app_pmp++;
+	}
+
+	// Derive a PMP capability for uart (to allow debug output)
+	{
+		s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(UART_MEM, boot_tmp, s3k_mk_pmp(uart_addr, S3K_MEM_RW)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, APP_PID, next_app_cidx));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_pmp_load(MONITOR, APP_PID, next_app_cidx, next_app_pmp));
+		next_app_cidx++;
+		next_app_pmp++;
+	}
+
+	// FILE SYSTEM CLIENT SOCKET
+	{
+		s3k_cidx_t server_cidx = 0;
+		for (size_t i = 0; i < S3K_CAP_CNT; i++) {
+			s3k_cap_t cap;
+			s3k_err_t err = s3k_mon_cap_read(MONITOR, FS_PID, i, &cap);
+			if (err)
+				continue;
+			if (cap.type == S3K_CAPTY_SOCKET && cap.sock.chan == FS_CHANNEL) {
+				server_cidx = i;
+				break;
+			}
+		}
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, FS_PID, server_cidx, BOOT_PID, boot_tmp));
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    boot_tmp, boot_tmp - 1,
+		    s3k_mk_socket(FS_CHANNEL, S3K_IPC_NOYIELD,
+				  S3K_IPC_CCAP | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_SDATA,
+				  fs_client_tag)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, server_cidx));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp - 1, APP_PID, next_app_cidx));
+		next_app_cidx++;
+	}
+
+	// PATH capability / "working directory"
+	{
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_path_derive(ROOT_PATH, "app", boot_tmp, PATH_READ | PATH_WRITE));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, APP_PID, next_app_cidx));
+		next_app_cidx++;
+	}
+
+	// TIME
+	{
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, HART2_TIME, APP_PID, next_app_cidx));
+		next_app_cidx++;
+	}
+
+	// Write start PC of FS to PC
+	SUCCESS_OR_RETURN_ERR(s3k_mon_reg_write(MONITOR, APP_PID, S3K_REG_PC, (uint64_t)APP_MEM));
+
+	return err;
+}
+
 int main(void)
 {
-	FS_PID;
 	s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
 	s3k_err_t err
 	    = setup_pmp_from_mem_cap(UART_MEM, UART_PMP, UART_PMP_SLOT, uart_addr, S3K_MEM_RW);
 	if (err)
 		alt_printf("Uart setup error code: %x\n", err);
 	alt_puts("finished setting up uart");
+	err = s3k_mon_suspend(MONITOR, FS_PID);
+	if (err)
+		alt_printf("s3k_mon_suspend error code: %x\n", err);
+	err = s3k_mon_suspend(MONITOR, APP_PID);
+	if (err)
+		alt_printf("s3k_mon_suspend error code: %x\n", err);
 
-	alt_puts("Successful execution of test program");
+	err = setup_fs();
+	if (err) {
+		alt_printf("setup_fs error code: %x\n", err);
+		return -1;
+	}
+	err = setup_app(FS_PID, 1);
+	if (err) {
+		alt_printf("setup_app error code: %x\n", err);
+		return -1;
+	}
+
+	// mon_dump_caps_range(MONITOR, BOOT_PID, 0, S3K_CAP_CNT - 1);
+	// mon_dump_caps_range(MONITOR, FS_PID, 0, S3K_CAP_CNT - 1);
+	// mon_dump_caps_range(MONITOR, APP_PID, 0, S3K_CAP_CNT - 1);
+
+	mon_dump_caps_range(MONITOR, BOOT_PID, 0, 10);
+	mon_dump_caps_range(MONITOR, FS_PID, 0, 5);
+	mon_dump_caps_range(MONITOR, APP_PID, 0, 5);
+
+	alt_printf("S3K_SCHED_TIME = %d\n", S3K_SCHED_TIME);
+
+	alt_puts("Successful execution of boot program");
+
+	err = s3k_mon_resume(MONITOR, FS_PID);
+	if (err)
+		alt_printf("s3k_mon_resume error code: %x\n", err);
+
+	err = s3k_mon_resume(MONITOR, APP_PID);
+	if (err)
+		alt_printf("s3k_mon_resume error code: %x\n", err);
 }
