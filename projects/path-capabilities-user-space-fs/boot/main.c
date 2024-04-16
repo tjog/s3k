@@ -119,11 +119,17 @@ s3k_err_t setup_fs()
 
 	// MEMORY+PMP
 	{
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    RAM_MEM, boot_tmp,
+		    s3k_mk_memory((uint64_t)FS_MEM, (uint64_t)FS_MEM + FS_MEM_LEN, S3K_MEM_RWX)));
 		s3k_napot_t fs_mem_addr = s3k_napot_encode((uint64_t)FS_MEM, FS_MEM_LEN);
 		SUCCESS_OR_RETURN_ERR(
-		    s3k_cap_derive(RAM_MEM, boot_tmp, s3k_mk_pmp(fs_mem_addr, S3K_MEM_RWX)));
+		    s3k_cap_derive(boot_tmp, boot_tmp - 1, s3k_mk_pmp(fs_mem_addr, S3K_MEM_RWX)));
 		SUCCESS_OR_RETURN_ERR(
 		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		next_fs_cidx++;
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp - 1, FS_PID, next_fs_cidx));
 		SUCCESS_OR_RETURN_ERR(s3k_mon_pmp_load(MONITOR, FS_PID, next_fs_cidx, next_fs_pmp));
 		next_fs_cidx++;
 		next_fs_pmp++;
@@ -186,11 +192,18 @@ s3k_err_t setup_app(s3k_pid_t fs_pid, uint32_t fs_client_tag)
 
 	// MEMORY+PMP
 	{
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(RAM_MEM, boot_tmp,
+				   s3k_mk_memory((uint64_t)APP_MEM, (uint64_t)APP_MEM + APP_MEM_LEN,
+						 S3K_MEM_RWX)));
 		s3k_napot_t app_mem_addr = s3k_napot_encode((uint64_t)APP_MEM, APP_MEM_LEN);
 		SUCCESS_OR_RETURN_ERR(
-		    s3k_cap_derive(RAM_MEM, boot_tmp, s3k_mk_pmp(app_mem_addr, S3K_MEM_RWX)));
+		    s3k_cap_derive(boot_tmp, boot_tmp - 1, s3k_mk_pmp(app_mem_addr, S3K_MEM_RWX)));
 		SUCCESS_OR_RETURN_ERR(
 		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, APP_PID, next_app_cidx));
+		next_app_cidx++;
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp - 1, APP_PID, next_app_cidx));
 		SUCCESS_OR_RETURN_ERR(
 		    s3k_mon_pmp_load(MONITOR, APP_PID, next_app_cidx, next_app_pmp));
 		next_app_cidx++;
@@ -267,6 +280,9 @@ int main(void)
 	if (err)
 		alt_printf("Uart setup error code: %x\n", err);
 	alt_puts("finished setting up uart");
+
+	// mon_dump_caps_range(MONITOR, BOOT_PID, 0, 15);
+
 	err = s3k_mon_suspend(MONITOR, FS_PID);
 	if (err)
 		alt_printf("s3k_mon_suspend error code: %x\n", err);
@@ -285,13 +301,13 @@ int main(void)
 		return -1;
 	}
 
-	// mon_dump_caps_range(MONITOR, BOOT_PID, 0, S3K_CAP_CNT - 1);
-	// mon_dump_caps_range(MONITOR, FS_PID, 0, S3K_CAP_CNT - 1);
-	// mon_dump_caps_range(MONITOR, APP_PID, 0, S3K_CAP_CNT - 1);
+	mon_dump_caps_range(MONITOR, BOOT_PID, 0, S3K_CAP_CNT - 1);
+	mon_dump_caps_range(MONITOR, FS_PID, 0, S3K_CAP_CNT - 1);
+	mon_dump_caps_range(MONITOR, APP_PID, 0, S3K_CAP_CNT - 1);
 
-	mon_dump_caps_range(MONITOR, BOOT_PID, 0, 10);
-	mon_dump_caps_range(MONITOR, FS_PID, 0, 5);
-	mon_dump_caps_range(MONITOR, APP_PID, 0, 5);
+	// mon_dump_caps_range(MONITOR, BOOT_PID, 0, 10);
+	// mon_dump_caps_range(MONITOR, FS_PID, 0, 5);
+	// mon_dump_caps_range(MONITOR, APP_PID, 0, 5);
 
 	alt_printf("S3K_SCHED_TIME = %d\n", S3K_SCHED_TIME);
 

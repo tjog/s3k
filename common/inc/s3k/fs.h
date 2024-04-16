@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 typedef enum {
 	FS_SUCCESS,
 	FS_ERR_FILE_OPEN,
@@ -11,6 +13,11 @@ typedef enum {
 	FS_ERR_INVALID_INDEX,
 	FS_ERR_INVALID_OPERATION_CODE,
 	FS_ERR_INVALID_CAPABILITY,
+	FS_ERR_MAX_CLIENTS,
+	FS_ERR_SERVER_MAX_CAPABILITIES,
+	FS_ERR_NOT_CONNECTED,
+	FS_ERR_LOAD_PMP,
+	FS_ERR_INVALID_MEMORY,
 } fs_err_t;
 
 /* data[0] is the operation code */
@@ -23,3 +30,13 @@ typedef enum {
 	fs_delete_entry, /* Sent capability is of type path */
 	fs_read_dir, /* Sent capability is of type path, data[1] is the child index to read, data[2] is a ptr to a s3k_dir_entry_info_t */
 } fs_client_ops;
+
+inline bool fs_server_should_receive_cap(fs_client_ops op)
+{
+	switch (op) {
+	case fs_client_finalize:
+		return false;
+	default:
+		return true;
+	}
+}
