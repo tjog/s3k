@@ -80,13 +80,12 @@ err_t do_sock_send(cap_t sock_cap, const ipc_msg_t *msg, proc_t **next)
 	recv->regs[REG_A1] = 0;
 	if (send_data) {
 		recv->regs[REG_A2] = msg->data[0];
-		recv->regs[REG_A3] = msg->data[0];
-		recv->regs[REG_A4] = msg->data[0];
-		recv->regs[REG_A5] = msg->data[0];
+		recv->regs[REG_A3] = msg->data[1];
+		recv->regs[REG_A4] = msg->data[2];
+		recv->regs[REG_A5] = msg->data[3];
 	}
 	if (msg->send_cap) {
-		cap_move(msg->src_buf, recv->cap_buf,
-			 (cap_t *)&recv->regs[REG_A1]);
+		cap_move(msg->src_buf, recv->cap_buf, (cap_t *)&recv->regs[REG_A1]);
 	}
 
 	if (mode == IPC_YIELD) {

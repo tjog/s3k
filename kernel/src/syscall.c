@@ -273,6 +273,7 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 		return SUCCESS;
 
 	case SYS_SOCK_SEND:
+	case SYS_SOCK_RECV:
 	case SYS_SOCK_SENDRECV:
 		if (!valid_idx(args->sock.sock_idx))
 			return ERR_INVALID_INDEX;
@@ -502,7 +503,7 @@ err_t sys_sock_send(proc_t *p, const sys_args_t *args, uint64_t *ret)
 	    .src_buf = ctable_get(p->pid, args->sock.cap_idx),
 	    .send_cap = args->sock.send_cap,
 	    .data
-	    = {args->sock.data[0], args->sock.data[1], args->sock.data[1], args->sock.data[3]},
+	    = {args->sock.data[0], args->sock.data[1], args->sock.data[2], args->sock.data[3]},
 	};
 	return cap_sock_send(sock, &msg, (proc_t **)ret);
 }
@@ -522,7 +523,7 @@ err_t sys_sock_sendrecv(proc_t *p, const sys_args_t *args, uint64_t *ret)
 	    .src_buf = ctable_get(p->pid, args->sock.cap_idx),
 	    .send_cap = args->sock.send_cap,
 	    .data
-	    = {args->sock.data[0], args->sock.data[1], args->sock.data[1], args->sock.data[3]},
+	    = {args->sock.data[0], args->sock.data[1], args->sock.data[2], args->sock.data[3]},
 	};
 	return cap_sock_sendrecv(sock, &msg, (proc_t **)ret);
 }
