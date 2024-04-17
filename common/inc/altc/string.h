@@ -23,6 +23,12 @@ size_t strlen(const char *s);
  * strscpy - Copy a C-string into a sized buffer
  */
 ssize_t strscpy(char *dest, const char *src, size_t count);
+/**
+ * strcmp - Compare C-strings, return 0 if equal, negative if
+ * s1 precedes s2 lexicographically, and positive if s1 follows s2.
+ * The value is the difference between the values when they differed.
+*/
+int strcmp(const char *s1, const char *s2);
 
 void *memcpy(void *dst, const void *src, size_t n);
 void *memmove(void *dst, const void *src, size_t n);
