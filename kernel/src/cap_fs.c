@@ -157,8 +157,7 @@ err_t path_read(cap_t path, char *buf, size_t n)
 	return SUCCESS;
 }
 
-err_t path_derive(cte_t src, cte_t dst, const char *path, uint16_t space,
-		  path_flags_t flags)
+err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_flags_t flags)
 {
 	cap_t scap = cte_cap(src);
 	if (!scap.type)

@@ -118,7 +118,7 @@ typedef union {
 		cidx_t idx;
 		cidx_t dst_idx;
 		const char *path;
-		uint16_t space;
+		uint32_t space;
 		path_flags_t flags;
 	} path;
 

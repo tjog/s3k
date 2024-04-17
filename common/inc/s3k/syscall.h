@@ -113,7 +113,7 @@ s3k_err_t s3k_mon_path_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx, c
  * kernel must be responsible for rather than user-space precreating the full
  * capability.
 */
-s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, uint16_t space,
+s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, uint32_t space,
 			  s3k_path_flags_t flags);
 /**
  * Read a file at the specified offset, EOF is detected by checking bytes_read < buf_size.

@@ -7,7 +7,7 @@ cap_t cap_mk_pmp(napot_t addr, rwx_t rwx);
 cap_t cap_mk_monitor(pid_t bgn, pid_t end);
 cap_t cap_mk_channel(chan_t bgn, chan_t end);
 cap_t cap_mk_socket(chan_t chan, ipc_mode_t mode, ipc_perm_t perm, uint32_t tag);
-cap_t cap_mk_path(uint32_t tag, uint16_t space, path_flags_t flags);
+cap_t cap_mk_path(uint32_t tag, uint32_t space, path_flags_t flags);
 
 bool cap_is_valid(cap_t cap);
 bool cap_is_revokable(cap_t parent, cap_t child);

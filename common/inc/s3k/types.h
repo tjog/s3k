@@ -185,8 +185,8 @@ typedef union s3k_cap {
 		bool read : 1;
 		bool write : 1;
 		uint16_t _padding : 9;
-		uint16_t space;
-		uint32_t tag;
+		uint16_t tag;
+		uint32_t space;
 	} path;
 } s3k_cap_t;
 
