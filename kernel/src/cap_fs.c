@@ -106,10 +106,8 @@ __attribute__((unused)) static void dump_tree(uint32_t tag, int depth)
 	}
 
 	tree_node_t *n = &nodes[tag];
-	alt_printf(
-	    "Node %d: %s, parent=%d, occupied=%d, first_child=%d, next_sibling=%d\n",
-	    tag, n->path, n->parent, n->occupied, n->first_child,
-	    n->next_sibling);
+	alt_printf("Node %d: %s, parent=%d, occupied=%d, first_child=%d, next_sibling=%d\n", tag,
+		   n->path, n->parent, n->occupied, n->first_child, n->next_sibling);
 
 	// Recursively dump children
 	uint32_t child = n->first_child;
@@ -128,8 +126,7 @@ void fs_init()
 	if (fr == FR_OK) {
 		alt_puts("File system mounted OK");
 	} else {
-		alt_printf("File system not mounted: %s\n",
-			   fresult_get_error(fr));
+		alt_printf("File system not mounted: %s\n", fresult_get_error(fr));
 	}
 }
 
@@ -190,7 +187,7 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_f
 	}
 
 	// Space can not exceed current space quota
-	if (scap.path.space < space)
+	if ((flags & PATH_WRITE) && scap.path.space < space)
 		return ERR_INVALID_DERIVATION;
 
 	// Can the system handle more path storage?
@@ -225,6 +222,8 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_f
 		if (ret < 0)
 			return ERR_PATH_TOO_LONG;
 	}
+	if (!(flags & PATH_WRITE))
+		space = 0;
 	cap_t ncap = cap_mk_path(new_idx, space, flags);
 	cte_insert(dst, ncap, src);
 	src_node->first_child = new_idx;
@@ -253,8 +252,7 @@ bool cap_path_deletable(cap_t c)
 	return (c.path.file) || (nodes[c.path.tag].first_child == 0);
 }
 
-err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-		uint32_t *bytes_read)
+err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, uint32_t *bytes_read)
 {
 	if (path.path.type != CAPTY_PATH || !path.path.file || !path.path.read)
 		return ERR_INVALID_INDEX;
@@ -338,22 +336,19 @@ static FRESULT f_disk_usage(char *path, uint32_t *sum)
 			// Each directory entry takes metadata equal to the size of FILINFO.
 			*sum += METADATA_DIR_ENTRY_SIZE;
 			if (fno.fattrib & AM_DIR) { /* It is a directory */
-				i = strlen(path);
+				i = alt_strlen(path);
 				// FIXME: could be nicer with a snprintf_s(...) or similar here
-				ssize_t ret
-				    = strlcat(&path[i], "/", MAX_PATH - i);
+				ssize_t ret = strlcat(&path[i], "/", S3K_MAX_PATH_LEN - i);
 				if (ret < 0) {
 					res = FR_NOT_ENOUGH_CORE;
 					break;
 				}
-				ret = strlcat(&path[i + 1], fno.fname,
-					      MAX_PATH - i - 1);
+				ret = strlcat(&path[i + 1], fno.fname, S3K_MAX_PATH_LEN - i - 1);
 				if (ret < 0) {
 					res = FR_NOT_ENOUGH_CORE;
 					break;
 				}
-				res = f_disk_usage(
-				    path, sum); /* Enter the directory */
+				res = f_disk_usage(path, sum); /* Enter the directory */
 				if (res != FR_OK)
 					break;
 				path[i] = 0;
@@ -367,7 +362,7 @@ static FRESULT f_disk_usage(char *path, uint32_t *sum)
 	return res;
 }
 
-static char du_buf[MAX_PATH];
+static char du_buf[S3K_MAX_PATH_LEN];
 
 err_t disk_usage(char *path, uint32_t *ret)
 {
@@ -403,8 +398,7 @@ err_t create_dir(cap_t path, bool ensure_create)
 		return SUCCESS;
 	} else if (fr != FR_NO_FILE) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		alt_printf("\tfrom running stat on: %s\n",
-			   nodes[path.path.tag].path);
+		alt_printf("\tfrom running stat on: %s\n", nodes[path.path.tag].path);
 		return ERR_PATH_STAT;
 	}
 
@@ -415,19 +409,22 @@ err_t create_dir(cap_t path, bool ensure_create)
 		// Would expand the file, need to check the parent node's space usage, all the
 		// way up to the root.
 		uint32_t t = nodes[path.path.tag].parent;
+		// If parent of capability is the same path, jump through them, we need to check our parent *directory*
+		while (t && alt_strcmp(nodes[t].path, nodes[path.path.tag].path) == 0)
+			t = nodes[t].parent;
 		while (t) {
 			tree_node_t *node = &nodes[t];
 			uint32_t sum = 0;
+			alt_printf("Running disk usage on path '%s'\n", node->path);
 			err_t err = disk_usage(node->path, &sum);
-			if (err)
+			if (err && err != ERR_PATH_STAT)
 				return err;
 
 			if (growing_by + sum > node->orig_space) {
 				alt_printf(
 				    "Error: creating directory %d (%s) would grow disk usage of node %d (%s) by %d, but orig_space = %d and current disk usage is %d\n",
-				    path.path.tag, nodes[path.path.tag].path, t,
-				    node->path, growing_by, node->orig_space,
-				    sum);
+				    path.path.tag, nodes[path.path.tag].path, t, node->path,
+				    growing_by, node->orig_space, sum);
 				return ERR_FILE_SIZE;
 			}
 			t = nodes[t].parent;
@@ -437,8 +434,7 @@ err_t create_dir(cap_t path, bool ensure_create)
 	fr = f_mkdir(nodes[path.path.tag].path);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		alt_printf("\tfrom running f_mkdir on: %s\n",
-			   nodes[path.path.tag].path);
+		alt_printf("\tfrom running f_mkdir on: %s\n", nodes[path.path.tag].path);
 		return ERR_FILE_WRITE;
 	}
 	return SUCCESS;
@@ -454,8 +450,55 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 	FRESULT fr;
 	err_t err = SUCCESS;
 
-	fr = f_open(&Fil, nodes[path.path.tag].path,
-		    FA_WRITE | FA_CREATE_ALWAYS);
+	FILINFO fi;
+	uint32_t growing_by = 0;
+	fr = f_stat(nodes[path.path.tag].path, &fi);
+	if (!(fr == FR_OK || fr == FR_NO_FILE)) {
+		err = ERR_PATH_STAT;
+		goto ret;
+	}
+	bool exists = fr == FR_OK;
+	if (fr == FR_NO_FILE) {
+		growing_by = METADATA_DIR_ENTRY_SIZE + offset + buf_size;
+	} else if (exists && offset + buf_size > fi.fsize) {
+		growing_by = offset + buf_size - fi.fsize;
+	}
+	// Check this node
+	if (offset + buf_size > nodes[path.path.tag].orig_space) {
+		err = ERR_FILE_SIZE;
+		goto ret;
+	}
+	// Check parent directory nodes if growing
+	if (growing_by) {
+		// Would expand the file, need to check the parent node's space usage, all the
+		// way up to the root.
+		uint32_t t = nodes[path.path.tag].parent;
+		// If parent of file is another file, jump through them, we need to check our parent *directory*
+		while (t && alt_strcmp(nodes[t].path, nodes[path.path.tag].path) == 0)
+			t = nodes[t].parent;
+		while (t) {
+			tree_node_t *node = &nodes[t];
+			uint32_t sum = 0;
+			err = disk_usage(node->path, &sum);
+			if (err)
+				goto ret;
+			if (growing_by + sum > node->orig_space) {
+				alt_putstr("Write ");
+				if (!exists) {
+					alt_putstr("(and creating) ");
+				}
+				alt_printf(
+				    "to %d (%s) would grow disk usage of node %d (%s) by %d, but orig_space = %d and current disk usage is %d\n",
+				    path.path.tag, nodes[path.path.tag].path, t, node->path,
+				    growing_by, node->orig_space, sum);
+				err = ERR_FILE_SIZE;
+				goto ret;
+			}
+			t = nodes[t].parent;
+		}
+	}
+	// FA_OPEN_ALWAYS means open the existing file or create it, i.e. succeed in both cases
+	fr = f_open(&Fil, nodes[path.path.tag].path, FA_WRITE | FA_OPEN_ALWAYS);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
 		err = ERR_FILE_OPEN;
@@ -511,15 +554,12 @@ void cap_path_clear(cap_t cap)
 
 	// The reference should reference the first child if the del_node has children,
 	// or the next sibling if not.
-	*ref_to_del_node = del_node->first_child ? del_node->first_child :
-						   del_node->next_sibling;
+	*ref_to_del_node = del_node->first_child ? del_node->first_child : del_node->next_sibling;
 
 	if (del_node->first_child) {
 		// Update all del_node children to have correct new parent
 		tree_node_t *del_node_child = &nodes[del_node->first_child];
-		while (
-		    del_node_child
-			->next_sibling) { // While we are not the last child/sibling
+		while (del_node_child->next_sibling) { // While we are not the last child/sibling
 			del_node_child->parent = del_node->parent;
 			del_node_child = &nodes[del_node_child->next_sibling];
 		}
