@@ -29,7 +29,6 @@ typedef enum {
 	S3K_ERR_DST_OCCUPIED,
 	S3K_ERR_INVALID_INDEX,
 	S3K_ERR_INVALID_DERIVATION,
-	S3K_ERR_INVALID_DELETION,
 	S3K_ERR_INVALID_MONITOR,
 	S3K_ERR_INVALID_PID,
 	S3K_ERR_INVALID_STATE,
@@ -186,7 +185,7 @@ typedef union s3k_cap {
 		bool write : 1;
 		uint16_t _padding : 9;
 		uint16_t tag;
-		uint32_t space;
+		uint32_t create_quota;
 	} path;
 } s3k_cap_t;
 

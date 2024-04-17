@@ -90,7 +90,7 @@ static void delete_hook(cte_t c, cap_t cap)
 		while (cte_cap(p).type != CAPTY_PATH || cte_cap(p).path.tag != ptag)
 			p = cte_prev(p);
 		cap_t pcap = cte_cap(p);
-		pcap.path.space += cap.path.space;
+		pcap.path.create_quota += cap.path.create_quota;
 		cte_set_cap(p, pcap);
 		cap_path_clear(cap);
 		break;
@@ -104,8 +104,6 @@ err_t cap_delete(cte_t c)
 	cap_t cap = cte_cap(c);
 	if (!cap.type)
 		return ERR_EMPTY;
-	if (!cap_is_deletable(cap))
-		return ERR_INVALID_DELETION;
 	delete_hook(c, cte_delete(c));
 	return SUCCESS;
 }
@@ -146,7 +144,7 @@ void cap_reclaim(cte_t p, cap_t pcap, cte_t c, cap_t ccap)
 		cap_sock_clear(ccap, proc_get(cte_pid(c)));
 		return;
 	case CAPTY_PATH:
-		pcap.path.space += ccap.path.space;
+		pcap.path.create_quota += ccap.path.create_quota;
 		cap_path_clear(ccap);
 		break;
 	default:

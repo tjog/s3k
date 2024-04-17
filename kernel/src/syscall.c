@@ -619,14 +619,14 @@ err_t sys_read_file(proc_t *p, const sys_args_t *args, uint64_t *ret)
 err_t sys_write_file(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t file = ctable_get(p->pid, args->file.idx);
-	return write_file(cte_cap(file), args->file.offset, args->file.buf, args->file.buf_size,
+	return write_file(file, args->file.offset, args->file.buf, args->file.buf_size,
 			  args->file.bytes_result);
 }
 
 err_t sys_create_dir(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t path = ctable_get(p->pid, args->create_dir.idx);
-	return create_dir(cte_cap(path), args->create_dir.ensure_create);
+	return create_dir(path, args->create_dir.ensure_create);
 }
 
 err_t sys_read_dir(proc_t *p, const sys_args_t *args, uint64_t *ret)
@@ -638,5 +638,5 @@ err_t sys_read_dir(proc_t *p, const sys_args_t *args, uint64_t *ret)
 err_t sys_path_delete(proc_t *p, const sys_args_t *args, uint64_t *ret)
 {
 	cte_t path = ctable_get(p->pid, args->delete_path.idx);
-	return path_delete(cte_cap(path));
+	return path_delete(path);
 }

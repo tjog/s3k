@@ -20,7 +20,7 @@ void kernel_init(void)
 	ctable_init();
 	sched_init();
 	proc_init();
-	fs_init();
+	fs_init(); // Modifies the root path ctable capability
 	alt_puts("kernel initialized");
 }
 

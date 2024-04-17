@@ -42,5 +42,5 @@
 		[8] = cap_mk_monitor(0, S3K_PROC_CNT),                \
 		[9] = cap_mk_channel(0, S3K_CHAN_CNT),                \
 		[10] = cap_mk_memory(VIRTIO0_BASE_ADDR, VIRTIO0_BASE_ADDR + 0x1000, MEM_RW), \
-		[11] = cap_mk_path(0, MibiBytes(5), PATH_READ | PATH_WRITE), \
+		[11] = cap_mk_path(0, 0 /* To be filled by fs initialization */ , PATH_READ | PATH_WRITE), \
 	}

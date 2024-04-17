@@ -67,7 +67,7 @@ typedef union {
 		s3k_cidx_t idx;
 		s3k_cidx_t dst_idx;
 		const char *path;
-		uint32_t space;
+		uint32_t create_quota;
 		s3k_path_flags_t flags;
 	} path;
 
@@ -880,15 +880,15 @@ s3k_err_t s3k_mon_path_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx,
 	return do_ecall(S3K_SYS_MON_PATH_READ, args).err;
 }
 
-s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest,
-			  uint32_t space, s3k_path_flags_t flags)
+s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, uint32_t create_quota,
+			  s3k_path_flags_t flags)
 {
 	sys_args_t args = {
 	    .path = {
 		     .idx = src,
 		     .dst_idx = dest,
 		     .path = path,
-		     .space = space,
+		     .create_quota = create_quota,
 		     .flags = flags,
 		     }
 	     };

@@ -1,3 +1,5 @@
+#include "cap_fs.h"
+
 #include "altc/string.h"
 #include "cap_ops.h"
 #include "cap_table.h"
@@ -17,9 +19,6 @@ typedef struct {
 	uint32_t parent;
 	uint32_t next_sibling;
 	uint32_t first_child;
-	// Different from .space in the capability, as that changes
-	// while this one is constant (the original allocated amount)
-	uint32_t orig_space;
 	char path[S3K_MAX_PATH_LEN];
 	bool occupied;
 } tree_node_t;
@@ -32,8 +31,6 @@ static tree_node_t nodes[S3K_MAX_PATH_CAPS] = {
 	   .parent = 0,
 	   .first_child = 0,
 	   .next_sibling = 0,
-#define MibiBytes(X) ((1 << 20) * (X))
-	   .orig_space = MibiBytes(10),
 	   .path = "/",
 	   .occupied = true,
 	   }
@@ -108,6 +105,8 @@ __attribute__((unused)) static void dump_tree(uint32_t tag, int depth)
 	tree_node_t *n = &nodes[tag];
 	alt_printf("Node %d: %s, parent=%d, occupied=%d, first_child=%d, next_sibling=%d\n", tag,
 		   n->path, n->parent, n->occupied, n->first_child, n->next_sibling);
+	alt_printf("Node %d: %s, parent=%d, occupied=%d, first_child=%d, next_sibling=%d\n", tag,
+		   n->path, n->parent, n->occupied, n->first_child, n->next_sibling);
 
 	// Recursively dump children
 	uint32_t child = n->first_child;
@@ -127,6 +126,39 @@ void fs_init()
 		alt_puts("File system mounted OK");
 	} else {
 		alt_printf("File system not mounted: %s\n", fresult_get_error(fr));
+	}
+
+	DWORD fre_clust, fre_sect, tot_sect;
+
+	FATFS *fs;
+
+	/* Get volume information and free clusters of drive 0 */
+	FRESULT res = f_getfree("", &fre_clust, &fs);
+	if (res == FR_OK) {
+		alt_puts("File system free space retrieved OK");
+	} else {
+		alt_printf("File system free space not retrieved: %s\n", fresult_get_error(fr));
+	}
+
+	/* Get total sectors and free sectors */
+	tot_sect = (fs->n_fatent - 2) * fs->csize;
+	fre_sect = fre_clust * fs->csize;
+
+	/* Print the free space (assuming 512 bytes/sector) */
+	alt_printf("%d B total drive space.\n%d B available.\n", tot_sect * 512, fre_sect * 512);
+
+	uint32_t free_bytes = fre_sect * 512;
+
+	// Find the initial path capability and set its capability to the fre size
+	for (size_t i = 0; i < S3K_CAP_CNT; i++) {
+		// Boot PID / 0 PID
+		cte_t c = ctable_get(0, i);
+		cap_t cap = cte_cap(c);
+		if (cap.type == CAPTY_PATH) {
+			cap.path.create_quota = free_bytes;
+			cte_set_cap(c, cap);
+			return;
+		}
 	}
 }
 
@@ -154,7 +186,7 @@ err_t path_read(cap_t path, char *buf, size_t n)
 	return SUCCESS;
 }
 
-err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_flags_t flags)
+err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t create_quota, path_flags_t flags)
 {
 	cap_t scap = cte_cap(src);
 	if (!scap.type)
@@ -187,7 +219,7 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_f
 	}
 
 	// Space can not exceed current space quota
-	if ((flags & PATH_WRITE) && scap.path.space < space)
+	if ((flags & PATH_WRITE) && scap.path.create_quota < create_quota)
 		return ERR_INVALID_DERIVATION;
 
 	// Can the system handle more path storage?
@@ -206,7 +238,6 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_f
 	    // overwrite first child of parent below. If no existing child, we will copy
 	    // 0 which will be the NULL sibling.
 	    .next_sibling = src_node->first_child,
-	    .orig_space = space,
 	    // Path is strscpy'd below after
 	    // Occupied only updated after we are sure to finish the derivation
 	};
@@ -222,16 +253,16 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_f
 		if (ret < 0)
 			return ERR_PATH_TOO_LONG;
 	}
-	if (!(flags & PATH_WRITE))
-		space = 0;
-	cap_t ncap = cap_mk_path(new_idx, space, flags);
+	if (!(flags & PATH_WRITE)) {
+		// A non-write path capability would never be able
+		// to create data, so create quota is automatically zero
+		create_quota = 0;
+	}
+	cap_t ncap = cap_mk_path(new_idx, create_quota, flags);
 	cte_insert(dst, ncap, src);
 	src_node->first_child = new_idx;
-	// Only write capabilities reserve space quota
-	if (ncap.path.write) {
-		scap.path.space -= space;
-		cte_set_cap(src, scap);
-	}
+	scap.path.create_quota -= create_quota;
+	cte_set_cap(src, scap);
 
 	// Finish
 	current_idx = new_idx;
@@ -243,13 +274,6 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, uint32_t space, path_f
 bool cap_path_revokable(cap_t p, cap_t c)
 {
 	return (c.type == CAPTY_PATH) && nodes[c.path.tag].parent == p.path.tag;
-}
-
-bool cap_path_deletable(cap_t c)
-{
-	// We need to have a parent hierarchy of the directories to check when writing,
-	// but files derived from files should always be deletable.
-	return (c.path.file) || (nodes[c.path.tag].first_child == 0);
 }
 
 err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, uint32_t *bytes_read)
@@ -382,8 +406,9 @@ err_t disk_usage(char *path, uint32_t *ret)
 	return ERR_PATH_STAT;
 }
 
-err_t create_dir(cap_t path, bool ensure_create)
+err_t create_dir(cte_t c_path, bool ensure_create)
 {
+	cap_t path = cte_cap(c_path);
 	if (path.path.type != CAPTY_PATH || path.path.file || !path.path.write)
 		return ERR_INVALID_INDEX;
 
@@ -401,34 +426,9 @@ err_t create_dir(cap_t path, bool ensure_create)
 		alt_printf("\tfrom running stat on: %s\n", nodes[path.path.tag].path);
 		return ERR_PATH_STAT;
 	}
-
-	// If we are actually going to create the directory, first check if the parent directories
-	// respective capability's maximum size (orig_space) can accomodate growing by METADATA_DIR_ENTRY_SIZE.
-	{
-		const uint32_t growing_by = METADATA_DIR_ENTRY_SIZE;
-		// Would expand the file, need to check the parent node's space usage, all the
-		// way up to the root.
-		uint32_t t = nodes[path.path.tag].parent;
-		// If parent of capability is the same path, jump through them, we need to check our parent *directory*
-		while (t && alt_strcmp(nodes[t].path, nodes[path.path.tag].path) == 0)
-			t = nodes[t].parent;
-		while (t) {
-			tree_node_t *node = &nodes[t];
-			uint32_t sum = 0;
-			alt_printf("Running disk usage on path '%s'\n", node->path);
-			err_t err = disk_usage(node->path, &sum);
-			if (err && err != ERR_PATH_STAT)
-				return err;
-
-			if (growing_by + sum > node->orig_space) {
-				alt_printf(
-				    "Error: creating directory %d (%s) would grow disk usage of node %d (%s) by %d, but orig_space = %d and current disk usage is %d\n",
-				    path.path.tag, nodes[path.path.tag].path, t, node->path,
-				    growing_by, node->orig_space, sum);
-				return ERR_FILE_SIZE;
-			}
-			t = nodes[t].parent;
-		}
+	const uint32_t growing_by = METADATA_DIR_ENTRY_SIZE;
+	if (path.path.create_quota < growing_by) {
+		return ERR_FILE_SIZE;
 	}
 
 	fr = f_mkdir(nodes[path.path.tag].path);
@@ -437,12 +437,17 @@ err_t create_dir(cap_t path, bool ensure_create)
 		alt_printf("\tfrom running f_mkdir on: %s\n", nodes[path.path.tag].path);
 		return ERR_FILE_WRITE;
 	}
+
+	path.path.create_quota -= growing_by;
+	cte_set_cap(c_path, path);
+
 	return SUCCESS;
 }
 
-err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
+err_t write_file(cte_t c_path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 		 uint32_t *bytes_written)
 {
+	cap_t path = cte_cap(c_path);
 	if (path.path.type != CAPTY_PATH || !path.path.file || !path.path.write)
 		return ERR_INVALID_INDEX;
 
@@ -463,39 +468,10 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 	} else if (exists && offset + buf_size > fi.fsize) {
 		growing_by = offset + buf_size - fi.fsize;
 	}
-	// Check this node
-	if (offset + buf_size > nodes[path.path.tag].orig_space) {
+	// Need to check create quota is enough
+	if (growing_by > path.path.create_quota) {
 		err = ERR_FILE_SIZE;
 		goto ret;
-	}
-	// Check parent directory nodes if growing
-	if (growing_by) {
-		// Would expand the file, need to check the parent node's space usage, all the
-		// way up to the root.
-		uint32_t t = nodes[path.path.tag].parent;
-		// If parent of file is another file, jump through them, we need to check our parent *directory*
-		while (t && alt_strcmp(nodes[t].path, nodes[path.path.tag].path) == 0)
-			t = nodes[t].parent;
-		while (t) {
-			tree_node_t *node = &nodes[t];
-			uint32_t sum = 0;
-			err = disk_usage(node->path, &sum);
-			if (err)
-				goto ret;
-			if (growing_by + sum > node->orig_space) {
-				alt_putstr("Write ");
-				if (!exists) {
-					alt_putstr("(and creating) ");
-				}
-				alt_printf(
-				    "to %d (%s) would grow disk usage of node %d (%s) by %d, but orig_space = %d and current disk usage is %d\n",
-				    path.path.tag, nodes[path.path.tag].path, t, node->path,
-				    growing_by, node->orig_space, sum);
-				err = ERR_FILE_SIZE;
-				goto ret;
-			}
-			t = nodes[t].parent;
-		}
 	}
 	// FA_OPEN_ALWAYS means open the existing file or create it, i.e. succeed in both cases
 	fr = f_open(&Fil, nodes[path.path.tag].path, FA_WRITE | FA_OPEN_ALWAYS);
@@ -517,6 +493,12 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 		err = ERR_FILE_WRITE;
 		goto cleanup;
 	}
+
+	if (growing_by) {
+		path.path.create_quota -= growing_by;
+		cte_set_cap(c_path, path);
+	}
+
 cleanup:
 	f_close(&Fil);
 ret:
@@ -573,12 +555,20 @@ void cap_path_clear(cap_t cap)
 	memset(del_node, 0, sizeof(tree_node_t));
 }
 
-err_t path_delete(cap_t path)
+err_t path_delete(cte_t c_path)
 {
+	cap_t path = cte_cap(c_path);
 	if (path.path.type != CAPTY_PATH || !path.path.write)
 		return ERR_INVALID_INDEX;
 
-	FRESULT fr = f_unlink(nodes[path.path.tag].path);
+	FILINFO fi;
+	FRESULT fr = f_stat(nodes[path.path.tag].path, &fi);
+	if (fr != FR_OK) {
+		return ERR_PATH_STAT;
+	}
+	uint32_t truncation_size
+	    = (fi.fsize + METADATA_DIR_ENTRY_SIZE); // Relies on fsize being 0 for directories
+	fr = f_unlink(nodes[path.path.tag].path);
 	if (fr == FR_DENIED) {
 		// Not empty, is current directory, or read-only attribute
 		return ERR_PATH_EXISTS;
@@ -586,5 +576,8 @@ err_t path_delete(cap_t path)
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
 		return ERR_FILE_WRITE;
 	}
+	path.path.create_quota += truncation_size;
+	cte_set_cap(c_path, path);
+
 	return SUCCESS;
 }

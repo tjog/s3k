@@ -138,7 +138,7 @@ typedef union cap {
 		bool write : 1;
 		uint16_t _padding : 9;
 		uint16_t tag;
-		uint32_t space;
+		uint32_t create_quota;
 	} path;
 
 } cap_t;
