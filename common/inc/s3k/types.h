@@ -98,6 +98,14 @@ typedef struct {
 	char fname[12 + 1]; /* File name */
 } s3k_dir_entry_info_t;
 
+/* COPIED FROM FATFS */
+/* File attribute bits for directory entry (s3k_dir_entry_info_t.fattrib) */
+#define AM_RDO 0x01 /* Read only */
+#define AM_HID 0x02 /* Hidden */
+#define AM_SYS 0x04 /* System */
+#define AM_DIR 0x10 /* Directory */
+#define AM_ARC 0x20 /* Archive */
+
 // Capability types
 typedef enum s3k_capty {
 	S3K_CAPTY_NONE = 0,    ///< No capability.
