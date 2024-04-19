@@ -113,7 +113,9 @@ __attribute__((unused)) static void dump_tree(uint32_t tag, int depth)
 void fs_init()
 {
 	FRESULT fr;
-	fr = f_mount(&FatFs, "", 0); /* Give a work area to the default drive */
+	fr = f_mount(
+	    &FatFs, "",
+	    1 /* OPT = 1 -> mount immediately*/); /* Give a work area to the default drive */
 	if (fr == FR_OK) {
 		alt_puts("File system mounted OK");
 	} else {
