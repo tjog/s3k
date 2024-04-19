@@ -1,5 +1,6 @@
 #include "cap_monitor.h"
 
+#include "cap_fs.h"
 #include "cap_ops.h"
 #include "cap_pmp.h"
 #include "proc.h"
@@ -114,5 +115,13 @@ err_t cap_monitor_pmp_unload(cte_t mon, cte_t pmp)
 	err_t err = check_monitor(mon, cte_pid(pmp), true);
 	if (!err)
 		err = cap_pmp_unload(pmp);
+	return err;
+}
+
+err_t cap_monitor_path_read(cte_t mon, cte_t path, char *buf, size_t n)
+{
+	err_t err = check_monitor(mon, cte_pid(path), true);
+	if (!err)
+		err = path_read(cte_cap(path), buf, n);
 	return err;
 }

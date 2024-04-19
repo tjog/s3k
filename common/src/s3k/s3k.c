@@ -77,6 +77,14 @@ typedef union {
 	} read_path;
 
 	struct {
+		s3k_cidx_t mon_idx;
+		s3k_pid_t pid;
+		s3k_cidx_t idx;
+		char *buf;
+		size_t n;
+	} mon_read_path;
+
+	struct {
 		s3k_cidx_t idx;
 	} delete_path;
 
@@ -822,6 +830,20 @@ s3k_err_t s3k_path_read(s3k_cidx_t idx, char *buf, size_t n)
 			  }
 	     };
 	return do_ecall(S3K_SYS_PATH_READ, args).err;
+}
+
+s3k_err_t s3k_mon_path_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx, char *buf, size_t n)
+{
+	sys_args_t args = {
+	    .mon_read_path = {
+			      .mon_idx = mon_idx,
+			      .pid = pid,
+			      .idx = idx,
+			      .buf = buf,
+			      .n = n,
+			      }
+	     };
+	return do_ecall(S3K_SYS_MON_PATH_READ, args).err;
 }
 
 s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, s3k_path_flags_t flags)

@@ -172,3 +172,18 @@ err_t cap_monitor_pmp_load(cte_t mon, cte_t pmp, pmp_slot_t pmp_slot);
  * type
  */
 err_t cap_monitor_pmp_unload(cte_t mon, cte_t pmp);
+
+/**
+ * Reads the underlying path of a path capability from a specified source CTE of a suspended process.
+ *
+ * @param mon The CTE of the monitor capability.
+ * @param src The source CTE.
+ * @param buf Pointer to store the read path.
+ * @param n Length of buf.
+ * @return SUCCESS if the path is read.
+ *         ERR_EMPTY if the CTE is empty.
+ *         ERR_INVALID_MONITOR if unauthorized or wrong capability type.
+ *         ERR_INVALID_STATE if the process is not suspended.
+ *         ERR_PATH_TOO_LONG if the buf cannot fit the path
+ */
+err_t cap_monitor_path_read(cte_t mon, cte_t path, char *buf, size_t n);

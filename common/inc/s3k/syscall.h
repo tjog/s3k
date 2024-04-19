@@ -38,6 +38,7 @@ typedef enum {
 
 	// Path+file calls
 	S3K_SYS_PATH_READ,
+	S3K_SYS_MON_PATH_READ,
 	S3K_SYS_PATH_DERIVE,
 	S3K_SYS_READ_FILE,
 	S3K_SYS_WRITE_FILE,
@@ -105,6 +106,7 @@ s3k_reply_t s3k_try_sock_sendrecv(s3k_cidx_t sock_idx, const s3k_msg_t *msg);
  * saved buffer.
 */
 s3k_err_t s3k_path_read(s3k_cidx_t idx, char *buf, size_t n);
+s3k_err_t s3k_mon_path_read(s3k_cidx_t mon_idx, s3k_pid_t pid, s3k_cidx_t idx, char *buf, size_t n);
 /**
  * Derive new path capabilities using this function rather than the generic 
  * capability derive, necessary to take a path and convert to a tag, which the

@@ -42,6 +42,7 @@ typedef enum {
 
 	// Path+file calls
 	SYS_PATH_READ,
+	SYS_MON_PATH_READ,
 	SYS_PATH_DERIVE,
 	SYS_READ_FILE,
 	SYS_WRITE_FILE,
@@ -125,6 +126,14 @@ typedef union {
 		char *buf;
 		size_t n;
 	} read_path;
+
+	struct {
+		cidx_t mon_idx;
+		pid_t pid;
+		cidx_t idx;
+		char *buf;
+		size_t n;
+	} mon_read_path;
 
 	struct {
 		cidx_t idx;
