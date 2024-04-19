@@ -120,13 +120,13 @@ s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest,
  * No persistent file descriptors exist.
 */
 s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			uint32_t *bytes_read);
+			volatile uint32_t *bytes_read);
 /**
  * Write to a file at the specified offset, partial writes are detected by checking bytes_read < buf_size.
  * No persistent file descriptors exist.
 */
 s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			 uint32_t *bytes_written);
+			 volatile uint32_t *bytes_written);
 /**
  * Creates a path physically on disk, errors if a parent path does not exist.
  * Ensure create will error instead of silently succeed when the directory

@@ -104,7 +104,7 @@ typedef union {
 		uint32_t offset;
 		uint8_t *buf;
 		uint32_t buf_size;
-		uint32_t *bytes_result;
+		volatile uint32_t *bytes_result;
 	} file;
 
 } sys_args_t;
@@ -860,7 +860,7 @@ s3k_err_t s3k_path_derive(s3k_cidx_t src, const char *path, s3k_cidx_t dest, s3k
 }
 
 s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			uint32_t *bytes_read)
+			volatile uint32_t *bytes_read)
 {
 	sys_args_t args = {
 	    .file = {
@@ -875,7 +875,7 @@ s3k_err_t s3k_read_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t
 }
 
 s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_t buf_size,
-			 uint32_t *bytes_written)
+			 volatile uint32_t *bytes_written)
 {
 	sys_args_t args = {
 	    .file = {
