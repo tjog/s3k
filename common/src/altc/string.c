@@ -1,6 +1,6 @@
 #include "altc/string.h"
 
-size_t strlen(const char *s)
+size_t alt_strlen(const char *s)
 {
 	const char *sc;
 	for (sc = s; *sc != '\0'; ++sc)
@@ -35,8 +35,8 @@ ssize_t strscpy(char *dest, const char *src, size_t count)
 
 ssize_t strlcat(char *dest, const char *src, size_t count)
 {
-	size_t dsize = strlen(dest);
-	size_t len = strlen(src);
+	size_t dsize = alt_strlen(dest);
+	size_t len = alt_strlen(src);
 	size_t res = dsize + len;
 
 	if (res >= count)
@@ -51,7 +51,7 @@ ssize_t strlcat(char *dest, const char *src, size_t count)
 	return res;
 }
 
-int strcmp(const char *s1, const char *s2)
+int alt_strcmp(const char *s1, const char *s2)
 {
 	while (*s1 == *s2++)
 		if (*s1++ == '\0')
