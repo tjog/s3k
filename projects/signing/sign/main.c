@@ -58,7 +58,7 @@ bool string_ends_with(const char *str, const char *suffix)
 }
 
 s3k_err_t find_suffix_in_dir_and_derive(s3k_cidx_t dir, char *suffix, s3k_cidx_t dest,
-					s3k_path_flags_t flags)
+					uint32_t space, s3k_path_flags_t flags)
 {
 	s3k_dir_entry_info_t dei = {0};
 	s3k_err_t err;
@@ -76,7 +76,7 @@ s3k_err_t find_suffix_in_dir_and_derive(s3k_cidx_t dir, char *suffix, s3k_cidx_t
 				flags |= FILE;
 			}
 			do {
-				err = s3k_path_derive(dir, dei.fname, dest, flags);
+				err = s3k_path_derive(dir, dei.fname, dest, space, flags);
 			} while (err && err == S3K_ERR_PREEMPTED);
 			if (err)
 				return err;
@@ -146,7 +146,7 @@ int main(void)
 
 	// Priv cidx
 	s3k_err_t err
-	    = find_suffix_in_dir_and_derive(home_dir_cidx, ".PRI", free_cidx, FILE | PATH_READ);
+	    = find_suffix_in_dir_and_derive(home_dir_cidx, ".PRI", free_cidx, 0, FILE | PATH_READ);
 	if (err) {
 		alt_printf(PROCESS_NAME ": could not find '.PRI' suffix, error: %d\n", err);
 		return -1;
@@ -156,7 +156,7 @@ int main(void)
 	ERR_IF_EQL(free_cidx, S3K_CAP_CNT);
 
 	// Pub cidx
-	err = find_suffix_in_dir_and_derive(home_dir_cidx, ".PUB", free_cidx, FILE | PATH_READ);
+	err = find_suffix_in_dir_and_derive(home_dir_cidx, ".PUB", free_cidx, 0, FILE | PATH_READ);
 	if (err) {
 		alt_printf(PROCESS_NAME ": could not find '.PUB' suffix, error: %d\n", err);
 		return -1;
@@ -337,7 +337,7 @@ s3k_msg_t do_request_public_key(s3k_reply_t recv_msg, s3k_cidx_t pub_cidx)
 		response.data[0] = SIGN_ERR_SERVER_OUT_OF_CAPABILITY_SLOTS;
 		return response;
 	}
-	s3k_err_t err = s3k_path_derive(pub_cidx, NULL, free, FILE | PATH_READ);
+	s3k_err_t err = s3k_path_derive(pub_cidx, NULL, free, 0, FILE | PATH_READ);
 	if (err) {
 		response.data[0] = SIGN_ERR_SERVER_DERIVATION;
 		return response;

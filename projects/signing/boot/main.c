@@ -94,8 +94,10 @@ s3k_err_t setup_sign()
 
 	// PATH capability / "working directory"
 	{
-		SUCCESS_OR_RETURN_ERR(
-		    s3k_path_derive(ROOT_PATH, "sign", boot_tmp, PATH_READ | PATH_WRITE));
+		alt_puts("HLLO");
+		SUCCESS_OR_RETURN_ERR(s3k_path_derive(
+		    ROOT_PATH, "sign", boot_tmp, (1 << 20) /* 1 MiB */, PATH_READ | PATH_WRITE));
+		alt_puts("HELLO");
 		SUCCESS_OR_RETURN_ERR(
 		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, SIGN_PID, next_sign_cidx));
 		next_sign_cidx++;
@@ -183,8 +185,8 @@ s3k_err_t setup_app(s3k_pid_t sign_pid, uint32_t sign_client_tag)
 
 	// PATH capability / "working directory"
 	{
-		SUCCESS_OR_RETURN_ERR(
-		    s3k_path_derive(ROOT_PATH, "app", boot_tmp, PATH_READ | PATH_WRITE));
+		SUCCESS_OR_RETURN_ERR(s3k_path_derive(
+		    ROOT_PATH, "app", boot_tmp, (1 << 20) /* 1 MiB */, PATH_READ | PATH_WRITE));
 		SUCCESS_OR_RETURN_ERR(
 		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, APP_PID, next_app_cidx));
 		next_app_cidx++;
@@ -236,7 +238,7 @@ int main(void)
 
 	err = setup_sign();
 	if (err) {
-		alt_printf("setup_fs error code: %x\n", err);
+		alt_printf("setup_sign error code: %x\n", err);
 		return -1;
 	}
 	err = setup_app(SIGN_PID, 1);

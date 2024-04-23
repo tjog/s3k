@@ -158,7 +158,7 @@ int main(void)
 #if 1
 	// Test escaping the home directory
 	do {
-		err = s3k_path_derive(home_dir_cidx, "../sign", free_cidx, PATH_READ | PATH_WRITE);
+		err = s3k_path_derive(home_dir_cidx, "../sign", free_cidx, 0, PATH_READ | PATH_WRITE);
 	} while (err && err == S3K_ERR_PREEMPTED);
 	if (!err) {
 		alt_puts(
@@ -175,7 +175,7 @@ int main(void)
 
 	// Create PATH capability to document to be signed
 	do {
-		err = s3k_path_derive(home_dir_cidx, "Test.doc", free_cidx,
+		err = s3k_path_derive(home_dir_cidx, "Test.doc", free_cidx, (1 << 20) /* 1 MiB */,
 				      FILE | PATH_READ | PATH_WRITE);
 	} while (err && err == S3K_ERR_PREEMPTED);
 	if (err) {
@@ -194,7 +194,7 @@ int main(void)
 		return -1;
 	}
 
-	err = s3k_path_derive(testdoc_cidx, NULL, free_cidx, FILE | PATH_READ);
+	err = s3k_path_derive(testdoc_cidx, NULL, free_cidx, 0, FILE | PATH_READ);
 	if (err) {
 		alt_printf(PROCESS_NAME ": error: s3k_path_derive testdoc_cidx returned error %d\n",
 			   err);
