@@ -27,7 +27,7 @@
 /// Stack size of 1024 KiB
 #define S3K_LOG_STACK_SIZE 10
 
-#define KibiBytes(X) ((1 << 10) * (X))
+#define MibiBytes(X) ((1 << 20) * (X))
 
 #define INIT_CAPS                                                     \
 	{                                                             \
@@ -42,5 +42,5 @@
 		[8] = cap_mk_monitor(0, S3K_PROC_CNT),                \
 		[9] = cap_mk_channel(0, S3K_CHAN_CNT),                \
 		[10] = cap_mk_memory(VIRTIO0_BASE_ADDR, VIRTIO0_BASE_ADDR + 0x1000, MEM_RW), \
-		[11] = cap_mk_path(0, KibiBytes(64) - 1, PATH_READ | PATH_WRITE), \
+		[11] = cap_mk_path(0, MibiBytes(5), PATH_READ | PATH_WRITE), \
 	}
