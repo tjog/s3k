@@ -135,7 +135,7 @@ s3k_err_t s3k_write_file(s3k_cidx_t file, uint32_t offset, uint8_t *buf, uint32_
 */
 s3k_err_t s3k_create_dir(s3k_cidx_t idx, bool ensure_create);
 /**
- * Deletes a path if on disk, returns an error if not found or delete operation is unsuccesful.
+ * Deletes a path if on disk, returns an error if not found or delete operation is unsuccessful.
  * If directory, it must be empty before deletion can succeed.
  * Note this does not delete or revoke the referenced capability.
 */
