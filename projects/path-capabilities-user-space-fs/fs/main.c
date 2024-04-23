@@ -238,6 +238,7 @@ static inline bool check_pmp(s3k_cidx_t pmp_cidx, uint8_t *buf, uint32_t len, s3
 			if (err)
 				return false;
 		}
+		s3k_sync_mem();
 	}
 	return true;
 }
