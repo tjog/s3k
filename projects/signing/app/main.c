@@ -204,8 +204,6 @@ void print_reply(s3k_reply_t reply)
 
 int main(void)
 {
-	// TODO: setup writing an example document, sending a read capability to the server,
-	// sending a write capability, and verify the document is signed when we get confirmation back
 	alt_puts("Hello from app");
 	s3k_sync_mem();
 
@@ -219,8 +217,24 @@ int main(void)
 	s3k_cidx_t free_cidx = find_free_cidx();
 	ERR_IF_EQL(free_cidx, S3K_CAP_CNT);
 
-	// Create PATH capability to document to be signed
 	s3k_err_t err;
+#if 1
+	// Test escaping the home directory
+	do {
+		err = s3k_path_derive(home_dir_cidx, "../sign", free_cidx,
+				      PATH_READ | PATH_WRITE);
+	} while (err && err == S3K_ERR_PREEMPTED);
+	if (!err) {
+		alt_puts(PROCESS_NAME
+			   ": error: s3k_path_derive to escape home directory unexpectdely succedeed");
+		return -1;
+	} else {
+		alt_printf(PROCESS_NAME
+			   ": error: s3k_path_derive to escape home directory failed as expected with error: %d\n", err);
+	}
+#endif
+
+	// Create PATH capability to document to be signed
 	do {
 		err = s3k_path_derive(home_dir_cidx, "Test.doc", free_cidx,
 				      FILE | PATH_READ | PATH_WRITE);
