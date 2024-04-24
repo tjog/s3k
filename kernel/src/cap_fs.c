@@ -171,7 +171,13 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, path_flags_t flags)
 	if (scap.path.file && path)
 		return ERR_INVALID_DERIVATION;
 
-	// TODO: check that path does not escape its current directory (i.e. ".." relative path)
+	// Check no relative paths to cheat the isolation.
+	if (path) {
+		char *res = alt_strstr(path, "..");
+		if (res) {
+			return ERR_INVALID_PATH;
+		}
+	}
 
 	// Can the system handle more path storage?
 	int new_idx = find_next_free_idx();

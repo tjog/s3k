@@ -314,9 +314,7 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 			return ERR_INVALID_INDEX;
 		if (!valid_idx(args->cap.dst_idx))
 			return ERR_INVALID_INDEX;
-		/* TODO: implement equivalent of "cap_is_valid" */
-		return SUCCESS; /* TODO: check for path is relative and beneath source
-		 					(not '..' etc) */
+		return SUCCESS;
 	case SYS_CREATE_DIR:
 		if (!valid_idx(args->create_dir.idx))
 			return ERR_INVALID_INDEX;
