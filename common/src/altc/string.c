@@ -58,3 +58,65 @@ int alt_strcmp(const char *s1, const char *s2)
 			return (0);
 	return (*(const unsigned char *)s1 - *(const unsigned char *)(s2 - 1));
 }
+
+static int alt_strncmp(const char *s1, const char *s2, size_t n)
+{
+	unsigned char c1 = '\0';
+	unsigned char c2 = '\0';
+
+	if (n >= 4) {
+		size_t n4 = n >> 2;
+		do {
+			c1 = (unsigned char)*s1++;
+			c2 = (unsigned char)*s2++;
+			if (c1 == '\0' || c1 != c2)
+				return c1 - c2;
+			c1 = (unsigned char)*s1++;
+			c2 = (unsigned char)*s2++;
+			if (c1 == '\0' || c1 != c2)
+				return c1 - c2;
+			c1 = (unsigned char)*s1++;
+			c2 = (unsigned char)*s2++;
+			if (c1 == '\0' || c1 != c2)
+				return c1 - c2;
+			c1 = (unsigned char)*s1++;
+			c2 = (unsigned char)*s2++;
+			if (c1 == '\0' || c1 != c2)
+				return c1 - c2;
+		} while (--n4 > 0);
+		n &= 3;
+	}
+
+	while (n > 0) {
+		c1 = (unsigned char)*s1++;
+		c2 = (unsigned char)*s2++;
+		if (c1 == '\0' || c1 != c2)
+			return c1 - c2;
+		n--;
+	}
+
+	return c1 - c2;
+}
+
+char *alt_strstr(const char *str, const char *substr)
+{
+	char c;
+	size_t len;
+
+	c = *substr++;
+	if (!c)
+		return (char *)str; // Trivial empty string case
+
+	len = alt_strlen(substr);
+	do {
+		char sc;
+
+		do {
+			sc = *str++;
+			if (!sc)
+				return (char *)0;
+		} while (sc != c);
+	} while (alt_strncmp(str, substr, len) != 0);
+
+	return (char *)(str - 1);
+}

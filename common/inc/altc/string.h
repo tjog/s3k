@@ -31,6 +31,15 @@ ssize_t strscpy(char *dest, const char *src, size_t count);
  * The value is the difference between the values when they differed.
 */
 int alt_strcmp(const char *s1, const char *s2);
+/**
+ * strstr - Finds the first occurrence of the null-terminated byte
+ * string pointed to by substr in the null-terminated byte string
+ * pointed to by str. The terminating null characters are not compared.
+ * Returns a pointer to the first character of the found substring in str,
+ * or a null pointer if such substring is not found. If substr points to
+ * an empty string, str is returned.
+*/
+char *alt_strstr(const char *str, const char *substr);
 
 void *memcpy(void *dst, const void *src, size_t n);
 void *memmove(void *dst, const void *src, size_t n);
