@@ -4,7 +4,7 @@
 #include "plat/config.h"
 
 // Number of user processes
-#define S3K_PROC_CNT 3
+#define S3K_PROC_CNT 4
 
 // Number of capabilities per process.
 #define S3K_CAP_CNT 32

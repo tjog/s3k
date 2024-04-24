@@ -1,5 +1,7 @@
 #pragma once
 
+#include "s3k/s3k.h"
+
 #include <stdbool.h>
 
 typedef enum {
@@ -40,3 +42,14 @@ inline bool fs_server_should_receive_cap(fs_client_ops op)
 		return true;
 	}
 }
+
+s3k_reply_t send_fs_client_init(s3k_cidx_t sock_idx, s3k_cidx_t pmp_cap_idx);
+s3k_reply_t send_fs_client_finalize(s3k_cidx_t sock_idx);
+s3k_reply_t send_fs_read_file(s3k_cidx_t sock_idx, s3k_cidx_t path_cap_idx, uint32_t file_offset,
+			      uint8_t *buf, size_t buf_len);
+s3k_reply_t send_fs_write_file(s3k_cidx_t sock_idx, s3k_cidx_t path_cap_idx, uint32_t file_offset,
+			       uint8_t *buf, size_t buf_len);
+s3k_reply_t send_fs_create_dir(s3k_cidx_t sock_idx, s3k_cidx_t path_cap_idx, bool ensure_create);
+s3k_reply_t send_fs_delete_entry(s3k_cidx_t sock_idx, s3k_cidx_t path_cap_idx);
+s3k_reply_t send_fs_read_dir(s3k_cidx_t sock_idx, s3k_cidx_t path_cap_idx, size_t child_idx,
+			     s3k_dir_entry_info_t *dest);

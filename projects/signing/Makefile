@@ -8,7 +8,7 @@ export S3K_CONF_H :=${abspath s3k_conf.h}
 include ${ROOT}/tools.mk
 include ${ROOT}/common/plat/${PLATFORM}.mk
 
-APPS=boot sign app
+APPS=boot fs sign app
 
 ELFS:=${patsubst %,${BUILD}/%.elf,kernel ${APPS}}
 

@@ -20,6 +20,8 @@
 #define UART_PMP 12
 #define UART_PMP_SLOT 1
 
+#define STATE_WHEN_BLOCKING_ON_CHANNEL(chan) (S3K_PSF_BLOCKED | ((uint64_t)chan << 32))
+
 s3k_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
 				 s3k_pmp_slot_t pmp_slot, s3k_napot_t napot_addr, s3k_rwx_t rwx)
 {
@@ -41,7 +43,80 @@ s3k_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
 			return err; \
 	} while (false);
 
-s3k_err_t setup_sign()
+s3k_err_t setup_fs()
+{
+	s3k_cidx_t boot_tmp = S3K_CAP_CNT - 1;
+	s3k_cidx_t next_fs_cidx = 0;
+	s3k_pmp_slot_t next_fs_pmp = 0;
+	s3k_err_t err = S3K_SUCCESS;
+
+	// MEMORY+PMP
+	{
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    RAM_MEM, boot_tmp,
+		    s3k_mk_memory((uint64_t)FS_MEM, (uint64_t)FS_MEM + FS_MEM_LEN, S3K_MEM_RWX)));
+		s3k_napot_t fs_mem_addr = s3k_napot_encode((uint64_t)FS_MEM, FS_MEM_LEN);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(boot_tmp, boot_tmp - 1, s3k_mk_pmp(fs_mem_addr, S3K_MEM_RWX)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		next_fs_cidx++;
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp - 1, FS_PID, next_fs_cidx));
+		SUCCESS_OR_RETURN_ERR(s3k_mon_pmp_load(MONITOR, FS_PID, next_fs_cidx, next_fs_pmp));
+		next_fs_cidx++;
+		next_fs_pmp++;
+	}
+
+	// Derive a PMP capability for uart (to allow debug output)
+	{
+		s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(UART_MEM, boot_tmp, s3k_mk_pmp(uart_addr, S3K_MEM_RW)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		SUCCESS_OR_RETURN_ERR(s3k_mon_pmp_load(MONITOR, FS_PID, next_fs_cidx, next_fs_pmp));
+		next_fs_cidx++;
+		next_fs_pmp++;
+	}
+
+	// VIRTIO
+	{
+		s3k_napot_t virtio_addr = s3k_napot_encode(VIRTIO0_BASE_ADDR, 0x1000);
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_cap_derive(VIRTIO, boot_tmp, s3k_mk_pmp(virtio_addr, S3K_MEM_RW)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		SUCCESS_OR_RETURN_ERR(s3k_mon_pmp_load(MONITOR, FS_PID, next_fs_cidx, next_fs_pmp));
+		next_fs_cidx++;
+		next_fs_pmp++;
+	}
+
+	// SERVER SOCKET
+	{
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    CHANNEL, boot_tmp,
+		    s3k_mk_socket(FS_CHANNEL, S3K_IPC_YIELD,
+				  S3K_IPC_CCAP | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_SDATA, 0)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, next_fs_cidx));
+		next_fs_cidx++;
+	}
+
+	// TIME
+	// {
+	// 	SUCCESS_OR_RETURN_ERR(
+	// 	    s3k_mon_cap_move(MONITOR, BOOT_PID, HART1_TIME, FS_PID, next_fs_cidx));
+	// 	next_fs_cidx++;
+	// }
+
+	// Write start PC of FS to PC
+	SUCCESS_OR_RETURN_ERR(s3k_mon_reg_write(MONITOR, FS_PID, S3K_REG_PC, (uint64_t)FS_MEM));
+
+	return err;
+}
+
+s3k_err_t setup_sign(s3k_pid_t fs_pid, uint32_t fs_client_tag)
 {
 	s3k_cidx_t boot_tmp = S3K_CAP_CNT - 1;
 	s3k_cidx_t next_sign_cidx = 0;
@@ -81,14 +156,30 @@ s3k_err_t setup_sign()
 		next_sign_pmp++;
 	}
 
-	// SERVER SOCKET
+	// FILE SYSTEM CLIENT SOCKET
 	{
-		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
-		    CHANNEL, boot_tmp,
-		    s3k_mk_socket(SIGN_CHANNEL, S3K_IPC_YIELD,
-				  S3K_IPC_CCAP | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_SDATA, 0)));
+		s3k_cidx_t server_cidx = 0;
+		for (size_t i = 0; i < S3K_CAP_CNT; i++) {
+			s3k_cap_t cap;
+			s3k_err_t err = s3k_mon_cap_read(MONITOR, FS_PID, i, &cap);
+			if (err)
+				continue;
+			if (cap.type == S3K_CAPTY_SOCKET && cap.sock.chan == FS_CHANNEL) {
+				server_cidx = i;
+				break;
+			}
+		}
 		SUCCESS_OR_RETURN_ERR(
-		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, SIGN_PID, next_sign_cidx));
+		    s3k_mon_cap_move(MONITOR, FS_PID, server_cidx, BOOT_PID, boot_tmp));
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    boot_tmp, boot_tmp - 1,
+		    s3k_mk_socket(FS_CHANNEL, S3K_IPC_YIELD,
+				  S3K_IPC_CCAP | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_SDATA,
+				  fs_client_tag)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, server_cidx));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp - 1, SIGN_PID, next_sign_cidx));
 		next_sign_cidx++;
 	}
 
@@ -96,6 +187,17 @@ s3k_err_t setup_sign()
 	{
 		SUCCESS_OR_RETURN_ERR(
 		    s3k_path_derive(ROOT_PATH, "sign", boot_tmp, PATH_READ | PATH_WRITE));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, SIGN_PID, next_sign_cidx));
+		next_sign_cidx++;
+	}
+
+	// SIGN SERVER SOCKET
+	{
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    CHANNEL, boot_tmp,
+		    s3k_mk_socket(SIGN_CHANNEL, S3K_IPC_YIELD,
+				  S3K_IPC_CCAP | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_SDATA, 0)));
 		SUCCESS_OR_RETURN_ERR(
 		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, SIGN_PID, next_sign_cidx));
 		next_sign_cidx++;
@@ -114,7 +216,8 @@ s3k_err_t setup_sign()
 	return err;
 }
 
-s3k_err_t setup_app(s3k_pid_t sign_pid, uint32_t sign_client_tag)
+s3k_err_t setup_app(s3k_pid_t fs_pid, uint32_t fs_client_tag, s3k_pid_t sign_pid,
+		    uint32_t sign_client_tag)
 {
 	s3k_cidx_t boot_tmp = S3K_CAP_CNT - 1;
 	s3k_cidx_t next_app_cidx = 0;
@@ -152,6 +255,33 @@ s3k_err_t setup_app(s3k_pid_t sign_pid, uint32_t sign_client_tag)
 		    s3k_mon_pmp_load(MONITOR, APP_PID, next_app_cidx, next_app_pmp));
 		next_app_cidx++;
 		next_app_pmp++;
+	}
+
+	// FS CLIENT SOCKET
+	{
+		s3k_cidx_t server_cidx = 0;
+		for (size_t i = 0; i < S3K_CAP_CNT; i++) {
+			s3k_cap_t cap;
+			s3k_err_t err = s3k_mon_cap_read(MONITOR, FS_PID, i, &cap);
+			if (err)
+				continue;
+			if (cap.type == S3K_CAPTY_SOCKET && cap.sock.chan == FS_CHANNEL) {
+				server_cidx = i;
+				break;
+			}
+		}
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, FS_PID, server_cidx, BOOT_PID, boot_tmp));
+		SUCCESS_OR_RETURN_ERR(s3k_cap_derive(
+		    boot_tmp, boot_tmp - 1,
+		    s3k_mk_socket(FS_CHANNEL, S3K_IPC_YIELD,
+				  S3K_IPC_CCAP | S3K_IPC_CDATA | S3K_IPC_SCAP | S3K_IPC_SDATA,
+				  fs_client_tag)));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp, FS_PID, server_cidx));
+		SUCCESS_OR_RETURN_ERR(
+		    s3k_mon_cap_move(MONITOR, BOOT_PID, boot_tmp - 1, APP_PID, next_app_cidx));
+		next_app_cidx++;
 	}
 
 	// SIGN CLIENT SOCKET
@@ -227,6 +357,9 @@ int main(void)
 
 	// mon_dump_caps_range(MONITOR, BOOT_PID, 0, 15);
 
+	err = s3k_mon_suspend(MONITOR, FS_PID);
+	if (err)
+		alt_printf("s3k_mon_suspend error code: %x\n", err);
 	err = s3k_mon_suspend(MONITOR, SIGN_PID);
 	if (err)
 		alt_printf("s3k_mon_suspend error code: %x\n", err);
@@ -234,12 +367,18 @@ int main(void)
 	if (err)
 		alt_printf("s3k_mon_suspend error code: %x\n", err);
 
-	err = setup_sign();
+	err = setup_fs();
 	if (err) {
 		alt_printf("setup_fs error code: %x\n", err);
 		return -1;
 	}
-	err = setup_app(SIGN_PID, 1);
+	uint32_t fs_client_tag = 1;
+	err = setup_sign(FS_PID, fs_client_tag++);
+	if (err) {
+		alt_printf("setup_fs error code: %x\n", err);
+		return -1;
+	}
+	err = setup_app(FS_PID, fs_client_tag++, SIGN_PID, 1);
 	if (err) {
 		alt_printf("setup_app error code: %x\n", err);
 		return -1;
@@ -255,22 +394,51 @@ int main(void)
 
 	alt_printf("S3K_SCHED_TIME = %d\n", S3K_SCHED_TIME);
 
+	// Let FS intialize, i.e. wait until it is blocking on receving IPC
+	err = s3k_mon_resume(MONITOR, FS_PID);
+	if (err) {
+		alt_printf("s3k_mon_resume error code: %x\n", err);
+		return -1;
+	}
+	s3k_state_t state = 0;
+	do {
+		err = s3k_mon_yield(MONITOR, FS_PID);
+		if (err) {
+			alt_printf("s3k_mon_yield error code: %x\n", err);
+			return -1;
+		}
+		err = s3k_mon_state_get(MONITOR, FS_PID, &state);
+		if (err) {
+			alt_printf("s3k_mon_state_get error code: %x\n", err);
+			return -1;
+		}
+		/* Wait until we are blocking on FS_CHANNEL */
+	} while (state != STATE_WHEN_BLOCKING_ON_CHANNEL(FS_CHANNEL));
+
+	alt_puts("Boot program completed wait on FS blocking on IPC");
+
+	// Let SIGN intialize, i.e. wait until it is blocking on receving IPC
 	err = s3k_mon_resume(MONITOR, SIGN_PID);
 	if (err) {
 		alt_printf("s3k_mon_resume error code: %x\n", err);
 		return -1;
 	}
-
-	// Let SIGN intialize, i.e. wait until it is blocking on receving IPC
-	s3k_state_t state = 0;
+	uint64_t serv_time = 0; /* 0 is initial value, SIGN server writes it when it is ready */
+	state = 0;
 	do {
 		err = s3k_mon_yield(MONITOR, SIGN_PID);
-		if (err)
-			alt_printf("s3k_mon_yield error code: %x\n", err);
+		if (err) {
+			alt_printf("SIGN_PID s3k_mon_yield error code: %x\n", err);
+			return -1;
+		}
 		err = s3k_mon_state_get(MONITOR, SIGN_PID, &state);
-		if (err)
+		if (err) {
 			alt_printf("s3k_mon_state_get error code: %x\n", err);
-	} while (err || state != S3K_PSF_BLOCKED);
+			return -1;
+		}
+		/* Wait on we are blocking on the SIGN channel, as we do FS channel stuff as part of our 
+		   initialization. */
+	} while (state != STATE_WHEN_BLOCKING_ON_CHANNEL(SIGN_CHANNEL));
 
 	alt_puts("Boot program completed wait on SIGN blocking on IPC");
 
@@ -280,17 +448,11 @@ int main(void)
 		return -1;
 	}
 
-	// TIME
+	// Start real program by moving hart time to APP, and APP will yield to the servers.
 	{
-		// mon_dump_caps_range(MONITOR, APP_PID, 0, S3K_CAP_CNT - 1);
-		err = s3k_mon_cap_move(MONITOR, BOOT_PID, HART1_TIME, APP_PID, free_app_cidx);
+		err = s3k_mon_cap_move(MONITOR, BOOT_PID, HART0_TIME, APP_PID, free_app_cidx);
 		if (err)
 			alt_printf("s3k_mon_cap_move error code: %x\n", err);
-		// mon_dump_caps_range(MONITOR, APP_PID, 0, S3K_CAP_CNT - 1);
-
-		// err = s3k_mon_yield(MONITOR, APP_PID);
-		// if (err)
-		// 	alt_printf("s3k_mon_yield error code: %x\n", err);
 	}
 	alt_puts("Boot program completed cap move to APP");
 
@@ -299,6 +461,4 @@ int main(void)
 		alt_printf("s3k_mon_resume error code: %x\n", err);
 		return -1;
 	}
-
-	alt_puts("Boot program completed everything");
 }
