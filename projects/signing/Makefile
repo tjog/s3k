@@ -5,6 +5,7 @@ export ROOT       :=${abspath ../..}
 export BUILD      :=${abspath build/${PLATFORM}}
 export S3K_CONF_H :=${abspath s3k_conf.h}
 
+include ${ROOT}/tools.mk
 include ${ROOT}/common/plat/${PLATFORM}.mk
 
 APPS=boot sign app
@@ -25,6 +26,9 @@ common:
 
 kernel: common
 	@${MAKE} -C ${ROOT}/kernel
+
+size: kernel ${APPS}
+	${SIZE} ${BUILD}/*.elf
 
 qemu: kernel ${APPS}
 	@ELFS="${ELFS}" ${ROOT}/scripts/qemu.sh -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
