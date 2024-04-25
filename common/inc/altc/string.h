@@ -22,6 +22,12 @@ ssize_t strlcat(char *dest, const char *src, size_t count);
   */
 size_t alt_strlen(const char *s);
 /**
+ * strlen_s - Find the length of a string, the function returns
+ * zero if str is a null pointer and returns strsz if the null
+ * character was not found in the first strsz bytes of str.
+ */
+size_t alt_strnlen_s( const char *s, size_t sz );;
+/**
  * strscpy - Copy a C-string into a sized buffer
  */
 ssize_t strscpy(char *dest, const char *src, size_t count);

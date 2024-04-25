@@ -8,6 +8,21 @@ size_t alt_strlen(const char *s)
 	return sc - s;
 }
 
+size_t alt_strnlen_s(const char *s, size_t sz)
+{
+	if (s == NULL)
+		return 0;
+
+	size_t count = 0;
+	while (sz && *s != '\0') {
+		count++;
+		sz--;
+		s++;
+	}
+
+	return count;
+}
+
 ssize_t strscpy(char *dest, const char *src, size_t count)
 {
 	long res = 0;
