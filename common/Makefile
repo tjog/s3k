@@ -8,7 +8,7 @@ include ${ROOT}/tools.mk
 CFLAGS:=-march=${ARCH} -mabi=${ABI} -mcmodel=${CMODEL} \
 	-DPLATFORM_${PLATFORM} \
 	-Os -flto -ffat-lto-objects \
-	-nostdlib -Iinc \
+	-nostdlib -include ${S3K_CONF_H} -Iinc \
 
 BUILD :=build/${PLATFORM}
 SRCS2OBJS=${patsubst src/%.S, ${BUILD}/%.o, ${filter %.S, ${1}}} \
