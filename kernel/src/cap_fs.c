@@ -6,9 +6,6 @@
 #include "ff.h"
 #include "proc.h"
 
-#define MAX_PATH 100
-#define MAX_NODES 100
-
 // In addition to the cap_table we need to reliably track parent relationships,
 // otherwise revocation could touch unrelated capabilities due to how the CDT works
 // (CTE next, prev pointers only)
@@ -16,13 +13,13 @@ typedef struct {
 	uint32_t parent;
 	uint32_t next_sibling;
 	uint32_t first_child;
-	char path[MAX_PATH];
+	char path[S3K_MAX_PATH_LEN];
 	bool occupied;
 } tree_node_t;
 
 // Each node is identified by its tag, the offset on the nodes array.
 static uint32_t current_idx = 0;
-static tree_node_t nodes[MAX_NODES] = {
+static tree_node_t nodes[S3K_MAX_PATH_CAPS] = {
     [0] = {
 	   .parent = 0,
 	   .first_child = 0,
@@ -127,7 +124,7 @@ uint32_t find_next_free_idx()
 {
 	uint32_t idx = current_idx;
 	while (nodes[idx].occupied) {
-		idx = (idx + 1) % MAX_NODES;
+		idx = (idx + 1) % S3K_MAX_PATH_CAPS;
 		// If we have gone a full cycle without finding a free tag
 		if (idx == current_idx)
 			return -1;
@@ -201,13 +198,13 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, path_flags_t flags)
 
 	src_node->first_child = new_idx;
 	// Copy path
-	strscpy(nodes[new_idx].path, src_node->path, MAX_PATH);
+	strscpy(nodes[new_idx].path, src_node->path, S3K_MAX_PATH_LEN);
 	if (path) {
 		// Append path separator and new path
-		ssize_t ret = strlcat(nodes[new_idx].path, "/", MAX_PATH);
+		ssize_t ret = strlcat(nodes[new_idx].path, "/", S3K_MAX_PATH_LEN);
 		if (ret < 0)
 			return ERR_PATH_TOO_LONG;
-		ret = strlcat(nodes[new_idx].path, path, MAX_PATH);
+		ret = strlcat(nodes[new_idx].path, path, S3K_MAX_PATH_LEN);
 		if (ret < 0)
 			return ERR_PATH_TOO_LONG;
 	}
