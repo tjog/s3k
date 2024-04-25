@@ -13,6 +13,7 @@
 #include "drivers/time.h"
 #include "error.h"
 #include "kernel.h"
+#include "pmp.h"
 #include "preempt.h"
 #include "sched.h"
 #include "trap.h"
@@ -22,7 +23,7 @@
 #define ARGS 8
 
 /** True if process p should ignore ERR_PREEMPTED for system call */
-static err_t validate_arguments(uint64_t call, const sys_args_t *args);
+static err_t validate_arguments(uint64_t call, const sys_args_t *args, const proc_t *p);
 static err_t sys_get_info(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_reg_read(proc_t *p, const sys_args_t *args, uint64_t *ret);
 static err_t sys_reg_write(proc_t *p, const sys_args_t *args, uint64_t *ret);
@@ -79,7 +80,7 @@ void handle_syscall(proc_t *p)
 	uint64_t ret = 0;
 
 	// Check that the arguments of the system calls are valid.
-	err_t err = validate_arguments(call, args);
+	err_t err = validate_arguments(call, args, p);
 	if (err)
 		goto fail_lbl;
 
@@ -140,6 +141,40 @@ void handle_syscall(proc_t *p)
 	}
 }
 
+// This method is not perfect, as there are orderings where connected PMP
+// regions would not be processed in the order required to detect it is valid,
+// and incorrectly reject it, but it is good enough.
+static bool valid_addr_range(const proc_t *p, void *dest, size_t n, mem_perm_t pmp_filter)
+{
+	// Check the process has one or more loaded PMP frames that provide
+	// Read and write permissions to the range [dest, dest+n]
+	void *lower = dest, *upper = dest + n;
+
+	// Avoid overflow, should be infeasible to have such big structure to
+	// write back as part of a kernel call anyway
+	if (n > UINT32_MAX)
+		return false;
+	if (upper < lower)
+		return false;
+	for (size_t i = 0; i < S3K_PMP_CNT; i++) {
+		if ((p->pmpcfg[i] & pmp_filter) == pmp_filter) {
+			napot_t pmp_addr = p->pmpaddr[i];
+			uint64_t base, size;
+			pmp_napot_decode(pmp_addr, &base, &size);
+			void *pmp_begin_ptr = (void *)base;
+			void *pmp_end_ptr = (void *)(base + size);
+			if (pmp_begin_ptr <= lower && pmp_end_ptr >= lower)
+				lower = pmp_end_ptr;
+			if (pmp_begin_ptr <= upper && pmp_end_ptr >= upper)
+				upper = pmp_begin_ptr;
+			if (lower >= upper) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 static bool valid_idx(cidx_t idx)
 {
 	return idx < S3K_CAP_CNT;
@@ -160,7 +195,7 @@ static bool valid_reg(reg_t reg)
 	return reg < REG_CNT;
 }
 
-err_t validate_arguments(uint64_t call, const sys_args_t *args)
+err_t validate_arguments(uint64_t call, const sys_args_t *args, const proc_t *p)
 {
 	// Check the argument of the system call, if they are
 	// within bounds.
@@ -286,14 +321,18 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 	case SYS_WRITE_FILE:
 		if (!valid_idx(args->file.idx))
 			return ERR_INVALID_INDEX;
-		return SUCCESS; /* TODO: check that the pointer + size is within
-							memory restrictions of process */
+		if (!valid_addr_range(p, args->file.buf, args->file.buf_size, MEM_RW))
+			return ERR_INVALID_MEM_ADDRESS;
+		if (!valid_addr_range(p, args->file.bytes_result, sizeof(*args->file.bytes_result),
+				      MEM_RW))
+			return ERR_INVALID_MEM_ADDRESS;
+		return SUCCESS;
 
 	case SYS_PATH_READ:
 		if (!valid_idx(args->read_path.idx))
 			return ERR_INVALID_INDEX;
-		/* TODO: Check that the destination buf is inside the address 
-			space of the calling process */
+		if (!valid_addr_range(p, args->read_path.buf, args->read_path.n, MEM_RW))
+			return ERR_INVALID_MEM_ADDRESS;
 		return SUCCESS;
 	case SYS_MON_PATH_READ:
 		if (!valid_idx(args->mon_read_path.mon_idx))
@@ -302,8 +341,8 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 			return ERR_INVALID_PID;
 		if (!valid_idx(args->mon_read_path.idx))
 			return ERR_INVALID_INDEX;
-		/* TODO: Check that the destination buf is inside the address 
-			space of the calling process */
+		if (!valid_addr_range(p, args->mon_read_path.buf, args->mon_read_path.n, MEM_RW))
+			return ERR_INVALID_MEM_ADDRESS;
 		return SUCCESS;
 	case SYS_PATH_DELETE:
 		if (!valid_idx(args->delete_path.idx))
@@ -314,6 +353,8 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 			return ERR_INVALID_INDEX;
 		if (!valid_idx(args->cap.dst_idx))
 			return ERR_INVALID_INDEX;
+		if (!valid_addr_range(p, args->read_dir.out, sizeof(*args->read_dir.out), MEM_R))
+			return ERR_INVALID_MEM_ADDRESS;
 		return SUCCESS;
 	case SYS_CREATE_DIR:
 		if (!valid_idx(args->create_dir.idx))
@@ -322,6 +363,8 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args)
 	case SYS_READ_DIR:
 		if (!valid_idx(args->read_dir.directory))
 			return ERR_INVALID_INDEX;
+		if (!valid_addr_range(p, args->read_dir.out, sizeof(*args->read_dir.out), MEM_RW))
+			return ERR_INVALID_MEM_ADDRESS;
 		return SUCCESS;
 	default:
 		return ERR_INVALID_SYSCALL;
