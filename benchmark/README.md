@@ -1,0 +1,17 @@
+- deriving path
+- kernel size
+- signing app app sizes
+- create a lot of entries
+    - Compare all
+        - deep (dfs)
+        - wide but shallow (depth limited bfs)
+        - wide (bfs at maximum depth)
+- read a lot
+    - Compare all
+        - Big sizes, fewer
+        - Small size, a lot
+- write a lot
+    - Compare all
+        - Non appending
+        - Big sizes, fewer
+        - Small size, a lot
