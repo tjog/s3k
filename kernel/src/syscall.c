@@ -1,6 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 #include "syscall.h"
 
+#include "altc/string.h"
 #include "cap_fs.h"
 #include "cap_ipc.h"
 #include "cap_monitor.h"
@@ -144,11 +145,11 @@ void handle_syscall(proc_t *p)
 // This method is not perfect, as there are orderings where connected PMP
 // regions would not be processed in the order required to detect it is valid,
 // and incorrectly reject it, but it is good enough.
-static bool valid_addr_range(const proc_t *p, void *dest, size_t n, mem_perm_t pmp_filter)
+static bool valid_addr_range(const proc_t *p, const void *dest, size_t n, mem_perm_t pmp_filter)
 {
 	// Check the process has one or more loaded PMP frames that provide
 	// Read and write permissions to the range [dest, dest+n]
-	void *lower = dest, *upper = dest + n;
+	const void *lower = dest, *upper = dest + n;
 
 	// Avoid overflow, should be infeasible to have such big structure to
 	// write back as part of a kernel call anyway
@@ -351,10 +352,16 @@ err_t validate_arguments(uint64_t call, const sys_args_t *args, const proc_t *p)
 	case SYS_PATH_DERIVE:
 		if (!valid_idx(args->path.idx))
 			return ERR_INVALID_INDEX;
-		if (!valid_idx(args->cap.dst_idx))
+		if (!valid_idx(args->path.dst_idx))
 			return ERR_INVALID_INDEX;
-		if (!valid_addr_range(p, args->read_dir.out, sizeof(*args->read_dir.out), MEM_R))
-			return ERR_INVALID_MEM_ADDRESS;
+		if (args->path.path != NULL) {
+			size_t s_len = alt_strnlen_s(args->path.path, S3K_MAX_PATH_LEN);
+			if (s_len == 0 || s_len == S3K_MAX_PATH_LEN)
+				return ERR_INVALID_PATH;
+			if (!valid_addr_range(p, args->path.path,
+					      s_len + 1 /* Include terminator */, MEM_R))
+				return ERR_INVALID_MEM_ADDRESS;
+		}
 		return SUCCESS;
 	case SYS_CREATE_DIR:
 		if (!valid_idx(args->create_dir.idx))
