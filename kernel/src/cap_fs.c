@@ -120,6 +120,15 @@ __attribute__((unused)) static void dump_tree(uint32_t tag, int depth)
 void fs_init()
 {
 	FRESULT fr;
+	BYTE work[FF_MAX_SS];
+	fr = f_mkfs("", 0, work, sizeof work);
+	if (fr == FR_OK) {
+		alt_puts("In mem disk formatting OK");
+	} else {
+		alt_printf("In mem disk not formatted: %s\n",
+			   fresult_get_error(fr));
+		return;
+	}
 	fr = f_mount(
 	    &FatFs, "",
 	    1 /* OPT = 1 -> mount immediately*/); /* Give a work area to the default drive */
