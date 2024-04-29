@@ -13,7 +13,7 @@ vpath %.S src ${COMMON}/src
 
 SRCS=init/start.S altio/altio.c s3k/s3k.c init/common.S
 SRCS+=${DRIVERS}
-SRCS+=main.c ffsystem.c ff.c diskio.c virtio_disk.c
+SRCS+=main.c ffsystem.c ff.c diskio.c
 
 OBJS=${patsubst %, ${BUILD}/${PROGRAM}/%.o, ${SRCS}}
 DEPS=${patsubst %, ${BUILD}/${PROGRAM}/%.d, ${SRCS}}

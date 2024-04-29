@@ -45,8 +45,10 @@ __attribute__((unused)) static void dump_tree(uint32_t tag, int depth)
 	}
 
 	tree_node_t *n = &nodes[tag];
-	alt_printf("Node %d: %s, parent=%d, occupied=%d, first_child=%d, next_sibling=%d\n", tag,
-		   n->path, n->parent, n->occupied, n->first_child, n->next_sibling);
+	alt_printf(
+	    "Node %d: %s, parent=%d, occupied=%d, first_child=%d, next_sibling=%d\n",
+	    tag, n->path, n->parent, n->occupied, n->first_child,
+	    n->next_sibling);
 
 	// Recursively dump children
 	uint32_t child = n->first_child;
@@ -137,7 +139,8 @@ err_t path_derive(cte_t src, cte_t dst, const char *path, path_flags_t flags)
 	strscpy(nodes[new_idx].path, src_node->path, S3K_MAX_PATH_LEN);
 	if (path) {
 		// Append path separator and new path
-		ssize_t ret = strlcat(nodes[new_idx].path, "/", S3K_MAX_PATH_LEN);
+		ssize_t ret
+		    = strlcat(nodes[new_idx].path, "/", S3K_MAX_PATH_LEN);
 		if (ret < 0)
 			return ERR_PATH_TOO_LONG;
 		ret = strlcat(nodes[new_idx].path, path, S3K_MAX_PATH_LEN);
@@ -186,12 +189,15 @@ void cap_path_clear(cap_t cap)
 
 	// The reference should reference the first child if the del_node has children,
 	// or the next sibling if not.
-	*ref_to_del_node = del_node->first_child ? del_node->first_child : del_node->next_sibling;
+	*ref_to_del_node = del_node->first_child ? del_node->first_child :
+						   del_node->next_sibling;
 
 	if (del_node->first_child) {
 		// Update all del_node children to have correct new parent
 		tree_node_t *del_node_child = &nodes[del_node->first_child];
-		while (del_node_child->next_sibling) { // While we are not the last child/sibling
+		while (
+		    del_node_child
+			->next_sibling) { // While we are not the last child/sibling
 			del_node_child->parent = del_node->parent;
 			del_node_child = &nodes[del_node_child->next_sibling];
 		}

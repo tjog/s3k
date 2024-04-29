@@ -9,12 +9,14 @@
 
 #include "ff.h"			/* Obtains integer types */
 #include "diskio.h"		/* Declarations of disk functions */
-#include "virtio_disk.h"
 #include <string.h>
 
 /* Definitions of physical drive number for each drive */
-#define DEV_VIRTIO		0	/* Example: Map Virtiodisk to physical drive 0 */
+#define DEV_INMEM		0	/* Example: Map Inmemdisk to physical drive 0 */
 
+
+#define SECTOR_SIZE 512 /* Actually a virtual sector size */
+uint8_t in_mem_disk[1024*1024]; /* 1 MB */
 
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
@@ -25,9 +27,8 @@ DSTATUS disk_status (
 )
 {
 	switch (pdrv) {
-	case DEV_VIRTIO :
-		if (virtio_disk_status())
-			return 0;
+	case DEV_INMEM :
+		return 0;
 	}
 	return STA_NOINIT;
 }
@@ -43,8 +44,7 @@ DSTATUS disk_initialize (
 )
 {
 	switch (pdrv) {
-	case DEV_VIRTIO :
-		virtio_disk_init();
+	case DEV_INMEM:
 		return disk_status(pdrv);
 	}
 
@@ -65,18 +65,11 @@ DRESULT disk_read (
 )
 {
 	switch (pdrv) {
-	case DEV_VIRTIO :
+	case DEV_INMEM :
 		// translate the arguments here
 		if (disk_status(pdrv) & STA_NOINIT) return RES_NOTRDY;
 
-		struct buf buffer;
-		do {
-			buffer.blockno = sector;
-			memset(buffer.data, 0, sizeof(buffer.data));
-			virtio_disk_rw(&buffer, 0);
-			memcpy(buff, buffer.data, 512);
-			buff += 512;
-		} while (--count);
+		memcpy(buff, &in_mem_disk[sector*SECTOR_SIZE], SECTOR_SIZE*count);
 		return RES_OK;
 	}
 
@@ -99,17 +92,11 @@ DRESULT disk_write (
 )
 {
 	switch (pdrv) {
-	case DEV_VIRTIO :
+	case DEV_INMEM :
 		// translate the arguments here
 		if (disk_status(pdrv) & STA_NOINIT) return RES_NOTRDY;
-
-		struct buf buffer;
-		do {
-			buffer.blockno = sector;
-			memcpy(buffer.data, buff, 512);
-			virtio_disk_rw(&buffer, 1);
-			buff += 512;
-		} while (--count);
+		
+		memcpy(&in_mem_disk[sector*SECTOR_SIZE], buff, SECTOR_SIZE*count);
 		return RES_OK;
 	}
 
@@ -141,12 +128,12 @@ DRESULT disk_ioctl (
 			break;
 
 	case GET_SECTOR_SIZE :	/* Get number of sectors on the disk (DWORD) */
-			*(DWORD*)buff =  512;
+			*(DWORD*)buff =  SECTOR_SIZE;
 			return RES_OK;
 			break;
 
 	case GET_SECTOR_COUNT :	/* Get number of sectors on the disk (DWORD) */
-			*(LBA_t*)buff =  10*1024*1024/512;
+			*(LBA_t*)buff =  sizeof(in_mem_disk)/SECTOR_SIZE;
 			return RES_OK;
 			break;
 
