@@ -7,7 +7,7 @@ _payload = ORIGIN(RAM) + LENGTH(RAM);
 __global_pointer$ = MIN(_sdata + 0x800, MAX(_data + 0x800, _end - 0x800));
 
 MEMORY {
-	RAM (rwx) : ORIGIN = 0x80000000, LENGTH = 64K
+	RAM (rwx) : ORIGIN = 0x80000000, LENGTH = 0x200000
 }
 
 SECTIONS {
