@@ -2,6 +2,7 @@
 
 #include "cap_util.h"
 #include "kassert.h"
+#include "pmp.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
