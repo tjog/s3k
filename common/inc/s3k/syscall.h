@@ -144,4 +144,4 @@ s3k_err_t s3k_path_delete(s3k_cidx_t idx);
  * Retrieve the directory entry information at some index and store in the
  * provided info structure.
 */
-s3k_err_t s3k_read_dir(s3k_cidx_t directory, size_t dir_entry_idx, s3k_dir_entry_info_t *out);
+s3k_err_t s3k_read_dir(s3k_cidx_t directory, size_t dir_entry_idx, volatile s3k_dir_entry_info_t *out);
