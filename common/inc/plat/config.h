@@ -2,6 +2,8 @@
 
 #if defined(PLATFORM_qemu_virt)
 #include "plat/qemu_virt.h"
+#elif defined(PLATFORM_qemu_virt_bench)
+#include "plat/qemu_virt.h"
 #elif defined(PLATFORM_sifive_unleashed)
 #include "plat/sifive_unleashed.h"
 #else
