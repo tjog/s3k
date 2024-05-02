@@ -341,7 +341,7 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 	fr = f_write(&Fil, buf, buf_size, bytes_written);
 	if (fr != FR_OK) {
 		alt_printf("FF error: %s\n", fresult_get_error(fr));
-		err = ERR_FILE_READ;
+		err = ERR_FILE_WRITE;
 		goto cleanup;
 	}
 cleanup:
