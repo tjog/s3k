@@ -183,22 +183,30 @@ timediff_t sample_revoke()
 	return t;
 }
 
+timediff_t sample_syscall()
+{
+	timediff_t t = {0, 0};
+	uint64_t begin_time = s3k_get_time();
+	uint64_t begin_instret = csrr_instret();
+	uint64_t begin_cycle = csrr_cycle();
+	s3k_get_pid();
+	uint64_t end_cycle = csrr_cycle();
+	uint64_t end_instret = csrr_instret();
+	uint64_t end_time = s3k_get_time();
+	t.cycle = end_cycle - begin_cycle;
+	t.mtime = end_time - begin_time;
+	t.instret = end_instret - begin_instret;
+	return t;
+}
+
 timediff_t measurements_derive[MEASUREMENTS];
 timediff_t measurements_delete[MEASUREMENTS];
 timediff_t measurements_revoke[MEASUREMENTS];
 
-int main(void)
+void do_derive_revoke_delete()
 {
-	s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
-	s3k_err_t err = setup_pmp_from_mem_cap(
-	    UART_MEM, UART_PMP, UART_PMP_SLOT, uart_addr, S3K_MEM_RW);
-	if (err)
-		alt_printf("Uart setup error code: %x\n", err);
-	alt_puts("finished setting up uart");
-
 	for (size_t i = 0; i < WARMUPS; i++) {
 		sample_derive();
-
 #if defined(REVOKE)
 		sample_revoke();
 #elif defined(DELETE)
@@ -242,6 +250,35 @@ int main(void)
 			   measurements_delete[i].cycle,
 			   measurements_delete[i].mtime,
 			   measurements_delete[i].instret);
+	}
+#endif
+}
+
+int main(void)
+{
+	s3k_napot_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+	s3k_err_t err = setup_pmp_from_mem_cap(
+	    UART_MEM, UART_PMP, UART_PMP_SLOT, uart_addr, S3K_MEM_RW);
+	if (err)
+		alt_printf("Uart setup error code: %x\n", err);
+	alt_puts("finished setting up uart");
+
+#if !defined(SCENARIO_SYS_CALL)
+	do_derive_revoke_delete();
+#else
+	for (size_t i = 0; i < WARMUPS; i++) {
+		sample_syscall();
+	}
+
+	for (size_t i = 0; i < MEASUREMENTS; i++) {
+		measurements_derive[i] = sample_syscall();
+	}
+	alt_puts("Scenario: " SCENARIO);
+	alt_puts("measurements_cycle,measurements_mtime,measurements_instret");
+	for (size_t i = 0; i < MEASUREMENTS; i++) {
+		alt_printf("%d,%d,%d\n", measurements_derive[i].cycle,
+			   measurements_derive[i].mtime,
+			   measurements_derive[i].instret);
 	}
 #endif
 
