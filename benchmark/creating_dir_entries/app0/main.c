@@ -79,6 +79,9 @@ uint64_t csrr_instret(void)
 
 char path[100];
 
+#define MibiBytes(X) ((1 << 20) * (X))
+
+
 static void iterate_paths(char *dest, int width, int depth, timediff_t *t)
 {
 	if (depth == 0)
@@ -90,7 +93,7 @@ static void iterate_paths(char *dest, int width, int depth, timediff_t *t)
 		dest[2] = '\0';
 	retry2:
 		s3k_err_t err = (s3k_path_derive(ROOT_PATH, path,
-						 S3K_CAP_CNT - 1, PATH_WRITE));
+						 S3K_CAP_CNT - 1, MibiBytes(1), PATH_WRITE));
 		if (err == S3K_ERR_PREEMPTED) {
 			goto retry2;
 		}
@@ -152,7 +155,7 @@ static void iterate_paths_cleanup(char *dest, int width, int depth)
 		dest[2] = '\0';
 	retry2:
 		s3k_err_t err = (s3k_path_derive(ROOT_PATH, path,
-						 S3K_CAP_CNT - 1, PATH_WRITE));
+						 S3K_CAP_CNT - 1, MibiBytes(1), PATH_WRITE));
 		if (err == S3K_ERR_PREEMPTED) {
 			goto retry2;
 		}
