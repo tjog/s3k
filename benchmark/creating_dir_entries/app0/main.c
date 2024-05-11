@@ -29,6 +29,7 @@
 // Derived
 #define UART_PMP 12
 #define UART_PMP_SLOT 1
+#define ROOT_PATH2 13
 
 s3k_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
 				 s3k_pmp_slot_t pmp_slot,
@@ -92,8 +93,9 @@ static void iterate_paths(char *dest, int width, int depth, timediff_t *t)
 		dest[1] = '/';
 		dest[2] = '\0';
 	retry2:
-		s3k_err_t err = (s3k_path_derive(ROOT_PATH, path,
-						 S3K_CAP_CNT - 1, MibiBytes(1), PATH_WRITE));
+		s3k_err_t err
+		    = (s3k_path_derive(ROOT_PATH2, path, S3K_CAP_CNT - 1,
+				       MibiBytes(1), PATH_WRITE));
 		if (err == S3K_ERR_PREEMPTED) {
 			goto retry2;
 		}
@@ -154,8 +156,9 @@ static void iterate_paths_cleanup(char *dest, int width, int depth)
 		iterate_paths_cleanup(dest + 2, width, depth - 1);
 		dest[2] = '\0';
 	retry2:
-		s3k_err_t err = (s3k_path_derive(ROOT_PATH, path,
-						 S3K_CAP_CNT - 1, MibiBytes(1), PATH_WRITE));
+		s3k_err_t err
+		    = (s3k_path_derive(ROOT_PATH2, path, S3K_CAP_CNT - 1,
+				       MibiBytes(1), PATH_WRITE));
 		if (err == S3K_ERR_PREEMPTED) {
 			goto retry2;
 		}
@@ -220,6 +223,11 @@ int main(void)
 	if (err)
 		alt_printf("Uart setup error code: %x\n", err);
 	alt_puts("finished setting up uart");
+
+	ASSERT(s3k_path_derive(ROOT_PATH, "r", ROOT_PATH2, MibiBytes(1),
+			       PATH_READ | PATH_WRITE));
+	ASSERT(s3k_create_dir(ROOT_PATH2, false));
+	alt_puts("finished setting up double root path");
 
 	do_benchmark();
 
