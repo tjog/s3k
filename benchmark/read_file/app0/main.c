@@ -2,6 +2,11 @@
 #include "altc/string.h"
 #include "s3k/s3k.h"
 
+#define KibiBytes(X) ((1 << 10) * (X))
+// Note that large scenarios may require adjusting app0.ld to increase RAM length.
+// The adjustement must be matched by the PMP setup in plat/config.h, meaning a NAPOT
+// RAM offset and length should be used to match the RAM length.
+
 #define WARMUPS 10
 /* Should not matter as the result should be deterministic*/
 #define MEASUREMENTS 100
@@ -130,7 +135,7 @@ uint8_t setup_buf[BUF_LEN];
 void setup()
 {
 	ASSERT(s3k_path_derive(ROOT_PATH, "abc.txt", S3K_CAP_CNT - 1,
-			       FILE | PATH_READ | PATH_WRITE));
+			       KibiBytes(1), FILE | PATH_READ | PATH_WRITE));
 	for (size_t i = 0; i < sizeof(setup_buf) / (sizeof(setup_buf[0]));
 	     i++) {
 		setup_buf[i] = (uint8_t)i;
