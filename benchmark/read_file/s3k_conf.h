@@ -4,7 +4,7 @@
 #include "plat/config.h"
 
 // Number of user processes
-#define S3K_PROC_CNT 1
+#define S3K_PROC_CNT 2
 
 // Number of capabilities per process.
 #define S3K_CAP_CNT 32
@@ -20,10 +20,10 @@
 #define S3K_MAX_PATH_CAPS 100
 
 // Number of slots per period
-#define S3K_SLOT_CNT 32ull
+#define S3K_SLOT_CNT 1ull
 
 // Length of slots in ticks.
-#define S3K_SLOT_LEN (S3K_RTC_HZ / S3K_SLOT_CNT)
+#define S3K_SLOT_LEN (S3K_RTC_HZ / S3K_SLOT_CNT * 1000)
 
 // Scheduler time
 #define S3K_SCHED_TIME (S3K_SLOT_LEN / 10)
