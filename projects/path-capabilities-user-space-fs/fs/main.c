@@ -204,7 +204,7 @@ static inline bool is_bit_subset(uint64_t a, uint64_t b)
 	return (a & b) == a;
 }
 
-/* Returns true if a is a range subset of b */
+/* Returns true if the range b is a subset of range a */
 static inline bool is_range_subset(uint64_t a_bgn, uint64_t a_end, uint64_t b_bgn, uint64_t b_end)
 {
 	return a_bgn <= b_bgn && b_end <= a_end;
@@ -222,7 +222,7 @@ static inline bool check_pmp(s3k_cidx_t pmp_cidx, uint8_t *buf, uint32_t len, s3
 		return false;
 	s3k_addr_t pmp_base, pmp_len;
 	s3k_napot_decode(cap.pmp.addr, &pmp_base, &pmp_len);
-	if (is_range_subset((uint64_t)buf, (uint64_t)buf + len, pmp_base, pmp_base + pmp_len))
+	if (is_range_subset(pmp_base, pmp_base + pmp_len, (uint64_t)buf, (uint64_t)buf + len))
 		return false;
 	if (!cap.pmp.used) {
 		s3k_err_t err = s3k_pmp_load(
