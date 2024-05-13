@@ -203,6 +203,7 @@ void do_benchmark()
 
 	for (size_t i = 0; i < MEASUREMENTS; i++) {
 		measurements[i] = sample();
+		alt_puts("Finished sample");
 		cleanup();
 	}
 
