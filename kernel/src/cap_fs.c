@@ -226,6 +226,9 @@ bool cap_path_revokable(cap_t p, cap_t c)
 
 err_t read_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size, uint32_t *bytes_read)
 {
+	if (path.path.type != CAPTY_PATH || !path.path.file || !path.path.read)
+		return ERR_INVALID_INDEX;
+
 	FIL Fil; /* File object needed for each open file */
 	FRESULT fr;
 	err_t err = SUCCESS;
