@@ -27,13 +27,22 @@ typedef struct {
 // Each node is identified by its tag, the offset on the nodes array.
 static uint32_t current_idx = 0;
 static tree_node_t nodes[S3K_MAX_PATH_CAPS] = {
-  // Needs to be kept in sync with INIT_CAPS
+  
     [0] = {
 	   .parent = 0,
 	   .first_child = 0,
 	   .next_sibling = 0,
+	   .orig_space = 0,
+	   .path = "",
+	   .occupied = true,
+	   },
+	// Needs to be kept in sync with INIT_CAPS
+	[1] = {
+	   .parent = 0,
+	   .first_child = 0,
+	   .next_sibling = 0,
 #define MibiBytes(X) ((1 << 20) * (X))
-	   .orig_space = MibiBytes(10),
+	   .orig_space = MibiBytes(5),
 	   .path = "/",
 	   .occupied = true,
 	   }
@@ -424,7 +433,6 @@ err_t create_dir(cap_t path, bool ensure_create)
 		while (t) {
 			tree_node_t *node = &nodes[t];
 			uint32_t sum = 0;
-			alt_printf("Running disk usage on path '%s'\n", node->path);
 			err_t err = disk_usage(node->path, &sum);
 			if (err && err != ERR_PATH_STAT)
 				return err;
@@ -484,7 +492,7 @@ err_t write_file(cap_t path, uint32_t offset, uint8_t *buf, uint32_t buf_size,
 		uint32_t t = nodes[path.path.tag].parent;
 		// If parent of file is another file, jump through them, we need to check our parent *directory*
 		while (t && alt_strcmp(nodes[t].path, nodes[path.path.tag].path) == 0)
-			t = nodes[t].parent;
+		 	t = nodes[t].parent;
 		while (t) {
 			tree_node_t *node = &nodes[t];
 			uint32_t sum = 0;

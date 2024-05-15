@@ -36,7 +36,6 @@
 // Derived
 #define UART_PMP 12
 #define UART_PMP_SLOT 1
-#define ROOT_PATH2 13
 
 s3k_err_t setup_pmp_from_mem_cap(s3k_cidx_t mem_cap_idx, s3k_cidx_t pmp_cap_idx,
 				 s3k_pmp_slot_t pmp_slot,
@@ -141,7 +140,7 @@ uint8_t setup_buf[BUF_LEN];
 
 void setup()
 {
-	ASSERT(s3k_path_derive(ROOT_PATH2, "abc.txt", S3K_CAP_CNT - 1,
+	ASSERT(s3k_path_derive(ROOT_PATH, "abc.txt", S3K_CAP_CNT - 1,
 			       KibiBytes(8), FILE | PATH_WRITE));
 }
 
@@ -177,18 +176,6 @@ int main(void)
 	if (err)
 		alt_printf("Uart setup error code: %x\n", err);
 	alt_puts("finished setting up uart");
-
-// Only the appending scenarios will trigger a grow operation, so avoid the additional
-// path lookup compared to other implementations for that scenario.
-#if defined(SCENARIO_WRITE_4K_APPENDING) || defined(SCENARIO_WRITE_4K_PARTLY_OVERLAPPING)
-	ASSERT(s3k_path_derive(ROOT_PATH, "r", ROOT_PATH2, MibiBytes(1),
-			       PATH_READ | PATH_WRITE));
-	ASSERT(s3k_create_dir(ROOT_PATH2, false));
-#elif defined(SCENARIO_WRITE_4K_FULLY_OVERLAPPING)
-	ASSERT(s3k_path_derive(ROOT_PATH, NULL, ROOT_PATH2, MibiBytes(1),
-			       PATH_READ | PATH_WRITE));
-#endif
-	alt_puts("finished setting up double root path");
 
 	do_benchmark();
 
