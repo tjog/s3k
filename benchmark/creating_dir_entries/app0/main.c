@@ -250,9 +250,9 @@ void do_benchmark()
 
 	alt_puts("Scenario: " SCENARIO);
 
-	alt_puts("cycle,mtime,instret");
+	alt_puts("cycle\ttime\tinstret");
 	for (size_t i = 0; i < MEASUREMENTS; i++) {
-		alt_printf("%d,%d,%d\n", measurements[i].cycle,
+		alt_printf("%d\t%d\t%d\n", measurements[i].cycle,
 			   measurements[i].mtime, measurements[i].instret);
 	}
 }
