@@ -126,7 +126,7 @@ DRESULT disk_ioctl(BYTE drv,  /* Physical drive nmuber (0) */
 		break;
 
 	case GET_SECTOR_COUNT: /* Get number of sectors on the disk (DWORD) */
-		*(LBA_t *)buff = sizeof(in_mem_disk) / SECTOR_SIZE;
+		*(LBA_t *)buff = (sizeof(in_mem_disk) / SECTOR_SIZE)-1;
 		return RES_OK;
 		break;
 
