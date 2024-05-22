@@ -233,7 +233,7 @@ void do_derive_revoke_delete()
 	alt_puts(
 	    "measurements_derive_cycle,measurements_derive_mtime,measurements_derive_instret,measurements_revoke_cycle,measurements_revoke_mtime,measurements_revoke_instret");
 	for (size_t i = 0; i < MEASUREMENTS; i++) {
-		alt_printf("%d,%d,%d,%d,%d,%d\n", measurements_derive[i].cycle,
+		alt_printf("%d\t%d\t%d,%d\t%d\t%d\n", measurements_derive[i].cycle,
 			   measurements_derive[i].mtime,
 			   measurements_derive[i].instret,
 			   measurements_revoke[i].cycle,
@@ -244,7 +244,7 @@ void do_derive_revoke_delete()
 	alt_puts(
 	    "measurements_derive_cycle,measurements_derive_mtime,measurements_derive_instret,measurements_delete_cycle,measurements_delete_mtime,measurements_delete_instret");
 	for (size_t i = 0; i < MEASUREMENTS; i++) {
-		alt_printf("%d,%d,%d,%d,%d,%d\n", measurements_derive[i].cycle,
+		alt_printf("%d\t%d\t%d,%d\t%d\t%d\n", measurements_derive[i].cycle,
 			   measurements_derive[i].mtime,
 			   measurements_derive[i].instret,
 			   measurements_delete[i].cycle,
@@ -276,7 +276,7 @@ int main(void)
 	alt_puts("Scenario: " SCENARIO);
 	alt_puts("measurements_cycle,measurements_mtime,measurements_instret");
 	for (size_t i = 0; i < MEASUREMENTS; i++) {
-		alt_printf("%d,%d,%d\n", measurements_derive[i].cycle,
+		alt_printf("%d\t%d\t%d\n", measurements_derive[i].cycle,
 			   measurements_derive[i].mtime,
 			   measurements_derive[i].instret);
 	}
