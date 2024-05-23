@@ -24,8 +24,8 @@
 // RTC ticks per second
 #define S3K_RTC_HZ 1000000ull
 
-/// Stack size of 1024 KiB
-#define S3K_LOG_STACK_SIZE 10
+/// Stack size of 2048 KiB
+#define S3K_LOG_STACK_SIZE 11
 
 #define MibiBytes(X) ((1 << 20) * (X))
 
