@@ -159,10 +159,10 @@ void setup()
 {
 	// Source file
 	ASSERT(s3k_path_derive(ROOT_PATH, "abc.txt", S3K_CAP_CNT - 1,
-			       FILE | PATH_WRITE | PATH_READ));
+			       FILE_SIZE + KibiBytes(1), FILE | PATH_WRITE | PATH_READ));
 	// Destination file
 	ASSERT(s3k_path_derive(ROOT_PATH, "def.txt", S3K_CAP_CNT - 2,
-			       FILE | PATH_WRITE | PATH_READ));
+			       FILE_SIZE + KibiBytes(1), FILE | PATH_WRITE | PATH_READ));
 	const size_t file_size = FILE_SIZE;
 	memset(setup_buf, 0, sizeof(setup_buf));
 	uint32_t total_written = 0;
