@@ -23,7 +23,7 @@
 #define S3K_SLOT_CNT 1ull
 
 // Length of slots in ticks.
-#define S3K_SLOT_LEN (S3K_RTC_HZ / S3K_SLOT_CNT * 10000)
+#define S3K_SLOT_LEN (S3K_RTC_HZ / S3K_SLOT_CNT * 100000)
 
 // Scheduler time
 #define S3K_SCHED_TIME (S3K_SLOT_LEN / 10)
